@@ -1,0 +1,408 @@
+{
+  "id": "the-pilot",
+  "title": "The Pilot",
+  "hook": "Your group has seven days to make a TV show.",
+  "players": {
+    "min": 2,
+    "max": 6
+  },
+  "startingStars": 2,
+  "start": "s1",
+  "mishaps": {
+    "boss_suspicious": {
+      "id": "boss_suspicious",
+      "title": "The boss thinks you're unhinged",
+      "description": "Legal now attends rehearsals. Everything costs more when Legal is watching.",
+      "crisisCostDelta": 1
+    },
+    "goose_grudge": {
+      "id": "goose_grudge",
+      "title": "The goose holds a grudge",
+      "description": "It believes it is the lead. It will not take notes.",
+      "crisisCostDelta": 1
+    },
+    "haunted_laugh": {
+      "id": "haunted_laugh",
+      "title": "The laugh track is haunted",
+      "description": "It fires at every wrong moment. It has opinions."
+    }
+  },
+  "scenes": {
+    "s1": {
+      "mode": "spotlight",
+      "background": "writers_room",
+      "text": "Day one of seven. The network has given you a studio, a budget and a deadline, in descending order of generosity. {spotlight} is holding the only pen that works.",
+      "choices": [
+        {
+          "label": "Pitch the talking dog show",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Everyone agrees it has been done. Everyone agrees to do it anyway.",
+          "next": "s2"
+        },
+        {
+          "label": "Pitch the gritty hospital drama",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Three people cry during the pitch. {spotlight} is fairly sure that is a good sign.",
+          "next": "s2"
+        },
+        {
+          "label": "Pitch whatever {randomPlayer} has been doodling",
+          "effects": {
+            "starsAll": 1
+          },
+          "result": "It is a duck who solves crimes. {randomPlayer} has never looked so alive, and the room is suddenly on fire about it.",
+          "next": "s2"
+        }
+      ]
+    },
+    "s2": {
+      "mode": "group",
+      "background": "writers_room",
+      "text": "Casting. There is one lead role and a room full of people who each privately believe they are the lead.",
+      "choices": [
+        {
+          "label": "{randomPlayer} carries the whole show",
+          "result": "{randomPlayer} accepts with a short speech nobody asked for.",
+          "next": "s3",
+          "effects": {
+            "stars": 1
+          }
+        },
+        {
+          "label": "It's an ensemble, nobody is the lead",
+          "result": "Peace breaks out. Everyone quietly plans to steal every scene.",
+          "next": "s3",
+          "effects": {
+            "stars": 1
+          }
+        },
+        {
+          "label": "The goose gets top billing",
+          "result": "There is no goose yet. The room decides this is a detail for later.",
+          "next": "s3",
+          "effects": {
+            "stars": 1
+          }
+        }
+      ]
+    },
+    "s3": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "text": "The budget arrives in an envelope. Inside: four hundred euro and a voucher for a car wash. {spotlight} counts it twice.",
+      "choices": [
+        {
+          "label": "Spend it all on one extremely good chair",
+          "effects": {
+            "stars": 2
+          },
+          "result": "The chair is magnificent. Nothing else in frame can look at it directly.",
+          "next": "s4"
+        },
+        {
+          "label": "Buy a smoke machine and hope",
+          "effects": {
+            "stars": 1
+          },
+          "result": "The smoke machine has two settings: off, and weather event.",
+          "next": "s4"
+        },
+        {
+          "label": "Save it, somebody will need it later",
+          "effects": {
+            "stars": 1
+          },
+          "result": "A dull decision that makes everyone feel obscurely safer.",
+          "next": "s4"
+        }
+      ]
+    },
+    "s4": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "text": "Props has delivered a goose. Nobody ordered a goose. The invoice says NO REFUNDS and, underneath, in different handwriting, GOOD LUCK.",
+      "choices": [
+        {
+          "label": "Write the goose into the script",
+          "effects": {
+            "stars": 2
+          },
+          "result": "Act two is now substantially better and legally riskier.",
+          "next": "s5"
+        },
+        {
+          "label": "Let it roam and shoot around it",
+          "effects": {
+            "stars": 1
+          },
+          "result": "The goose finds the one camera angle it likes and stays there.",
+          "next": "s5"
+        },
+        {
+          "label": "Put {randomPlayer} in charge of the goose",
+          "effects": {
+            "stars": 1
+          },
+          "result": "{randomPlayer} and the goose reach an understanding that nobody else is allowed to know the terms of.",
+          "next": "s5"
+        }
+      ]
+    },
+    "s5": {
+      "mode": "group",
+      "background": "studio_floor",
+      "text": "Dress rehearsal. Act two collapses in a way that is, technically, new to television.",
+      "choices": [
+        {
+          "label": "Cut act two entirely",
+          "result": "The show is now nineteen minutes long. The network ordered twenty-two.",
+          "next": "s6",
+          "effects": {
+            "stars": 1
+          }
+        },
+        {
+          "label": "Keep it and call it experimental",
+          "result": "You say the word \"experimental\" out loud and everyone relaxes immediately.",
+          "next": "s6",
+          "effects": {
+            "stars": 1
+          }
+        },
+        {
+          "label": "Rewrite it overnight, together",
+          "result": "Nobody sleeps. The new act two is genuinely good, which feels unfair.",
+          "next": "s6",
+          "effects": {
+            "stars": 1
+          }
+        }
+      ]
+    },
+    "s6": {
+      "type": "crisis",
+      "mode": "spotlight",
+      "background": "studio_fire",
+      "text": "The network boss walks in three days early. The set is on fire in a small, manageable, deeply illegal way, and the goose is loose.",
+      "choices": [
+        {
+          "label": "Pretend the fire is part of the show",
+          "cost": 0,
+          "effects": {
+            "addMishap": "boss_suspicious"
+          },
+          "result": "He watches the fire for a long moment. \"Bold,\" he says, in the voice of a man updating a spreadsheet.",
+          "next": "s7b"
+        },
+        {
+          "label": "Distract him with the catchphrase",
+          "cost": 2,
+          "result": "{spotlight} lands it perfectly. He laughs. The fire is dealt with off-camera by somebody braver.",
+          "next": "s7"
+        },
+        {
+          "label": "Get the entire cast to perform a musical number",
+          "cost": 5,
+          "effects": {
+            "starsAll": 1
+          },
+          "result": "Nobody rehearsed this. Somehow that helps. He applauds through the whole thing, and props put the fire out during the key change.",
+          "next": "s7"
+        }
+      ]
+    },
+    "s7": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "text": "The boss leaves in a good mood. You have four days, one goose, and a set that smells faintly of victory and smoke.",
+      "choices": [
+        {
+          "label": "Push for a bigger finale",
+          "effects": {
+            "stars": 2
+          },
+          "result": "The finale now requires a crane you do not have.",
+          "next": "s8"
+        },
+        {
+          "label": "Lock the script and protect what works",
+          "effects": {
+            "stars": 1
+          },
+          "result": "A calm, professional decision. It will be the only one.",
+          "next": "s8"
+        }
+      ]
+    },
+    "s7b": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "text": "The boss left without saying goodbye. Someone from Legal has started attending rehearsals with a clipboard and no expression.",
+      "choices": [
+        {
+          "label": "Charm Legal",
+          "effects": {
+            "stars": 2
+          },
+          "result": "Legal laughs once, writes it down, and underlines it.",
+          "next": "s8"
+        },
+        {
+          "label": "Ignore Legal and work faster",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Legal turns a page. Nobody has seen the first page.",
+          "next": "s8"
+        }
+      ]
+    },
+    "s8": {
+      "mode": "group",
+      "background": "writers_room",
+      "text": "The show needs a title. The network wants it by five o'clock. It is four o'clock.",
+      "choices": [
+        {
+          "label": "Duck, Duck, Hospital",
+          "result": "It tests badly with everyone except one focus group who will not stop talking about it.",
+          "next": "s9",
+          "effects": {
+            "stars": 1
+          }
+        },
+        {
+          "label": "The Goose Is Out",
+          "result": "Legally this implies the goose was ever contained.",
+          "next": "s9",
+          "effects": {
+            "stars": 1
+          }
+        },
+        {
+          "label": "Just call it Untitled",
+          "result": "Marketing loves it. Marketing is the only one.",
+          "next": "s9",
+          "effects": {
+            "stars": 1
+          }
+        }
+      ]
+    },
+    "s9": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "text": "Shooting day. {spotlight} is calling the shots and {randomPlayer} has already lost a shoe somewhere in the rig.",
+      "choices": [
+        {
+          "label": "Shoot the whole thing in one long take",
+          "effects": {
+            "stars": 2
+          },
+          "result": "Take one is a disaster. Take nine is a miracle. There is no take ten.",
+          "next": "s10"
+        },
+        {
+          "label": "Cover everything, fix it in the edit",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Four hours of footage, all of it usable, none of it exciting.",
+          "next": "s10"
+        },
+        {
+          "label": "Let the goose improvise",
+          "effects": {
+            "stars": 3,
+            "addMishap": "goose_grudge"
+          },
+          "result": "The goose improvises. It is the best footage you have. The goose now knows it is the best footage you have.",
+          "next": "s10"
+        }
+      ]
+    },
+    "s10": {
+      "type": "crisis",
+      "mode": "spotlight",
+      "background": "broadcast_night",
+      "text": "Broadcast night. Ninety seconds to air. The lead has lost their voice, the goose is in the lighting rig, and the network boss is sitting in the front row.",
+      "choices": [
+        {
+          "label": "Go live and pray",
+          "cost": 0,
+          "effects": {
+            "addMishap": "haunted_laugh"
+          },
+          "result": "You go live. The laugh track fires at every wrong moment and will not stop. It is still going quietly under the credits.",
+          "next": "s11"
+        },
+        {
+          "label": "Send {randomPlayer} out to stall",
+          "cost": 2,
+          "result": "{randomPlayer} stalls for four minutes with a story about a dog. It is, unexpectedly, the best-reviewed part of the night.",
+          "next": "s11"
+        },
+        {
+          "label": "Rewrite the cold open live, on air",
+          "cost": 4,
+          "effects": {
+            "starsAll": 1
+          },
+          "result": "{spotlight} rewrites it out loud while the camera is running and everyone follows. The goose stays in the rig, watching, like a producer.",
+          "next": "s11"
+        }
+      ]
+    },
+    "s11": {
+      "mode": "spotlight",
+      "background": "writers_room",
+      "text": "The morning after. The overnight numbers arrive in an envelope thinner than anyone wanted. {spotlight} opens it.",
+      "choices": [
+        {
+          "label": "Read them out loud",
+          "result": "{spotlight} reads. The room goes very quiet, and then does not.",
+          "next": null
+        },
+        {
+          "label": "Hand them to {randomPlayer} without looking",
+          "result": "{randomPlayer} reads, makes a face nobody can interpret, and turns the page around.",
+          "next": null
+        }
+      ]
+    }
+  },
+  "endings": [
+    {
+      "id": "renewed",
+      "title": "Renewed for nine seasons",
+      "text": "Not one disaster made it to air. The network orders nine seasons and a holiday special that nobody will enjoy making.",
+      "requires": {
+        "maxMishaps": 0
+      }
+    },
+    {
+      "id": "midseason",
+      "title": "Midseason replacement",
+      "text": "One thing went visibly wrong and the show survived it. It airs in February against something enormous and does better than anyone expected. The goose is invited back.",
+      "requires": {
+        "maxMishaps": 1
+      }
+    },
+    {
+      "id": "burned_off",
+      "title": "Burned off over two nights in August",
+      "text": "Two disasters, both on camera. The network airs it quietly, out of order, opposite the tennis. Somebody, somewhere, tapes it.",
+      "requires": {
+        "maxMishaps": 2
+      }
+    },
+    {
+      "id": "cult",
+      "title": "Cancelled, now a cult classic",
+      "text": "Everything that could go wrong went wrong on camera. Eleven years later a bootleg is passed around and the phrase “the goose episode” enters the language."
+    }
+  ]
+}
