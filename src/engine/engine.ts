@@ -21,6 +21,7 @@ import type {
   GameState,
   Gift,
   LogEntry,
+  MinigameSpec,
   PlayerState,
   RejectionCode,
   Scene,
@@ -50,6 +51,7 @@ export function createGame(
     vars: {},
     votes: {},
     gifts: [],
+    minigame: null,
     pending: null,
     endingId: null,
     log: [],
@@ -98,6 +100,23 @@ export function effectiveCost(story: Story, state: GameState, scene: Scene, choi
   // A paid choice never drops below 1, so a discount mishap can't make a gated
   // option free and erase the decision.
   return Math.max(1, base + surcharge);
+}
+
+/**
+ * How hard a skill test is right now, after mishap surcharges. The mirror of
+ * effectiveCost: a group that has collected setbacks finds everything harder.
+ * Clamped to 1..5 so a pile of mishaps cannot make a puzzle unwinnable.
+ */
+export function effectiveDifficulty(
+  story: Story,
+  state: GameState,
+  spec: MinigameSpec,
+): number {
+  const surcharge = state.mishaps.reduce(
+    (sum, id) => sum + (story.mishaps?.[id]?.minigameDifficultyDelta ?? 0),
+    0,
+  );
+  return Math.max(1, Math.min(5, (spec.difficulty ?? 2) + surcharge));
 }
 
 export function textContext(state: GameState): TextContext {
@@ -231,6 +250,8 @@ export function applyAction(story: Story, state: GameState, action: Action): Act
       return applyVote(story, state, action);
     case "choose":
       return applyChoose(story, state, action);
+    case "minigameResult":
+      return applyMinigameResult(story, state, action);
     case "continue":
       return applyContinue(story, state);
   }
@@ -344,6 +365,34 @@ function applyChoose(
     return reject("unavailable_choice", "The room does not know enough for that yet.");
   }
 
+  const scene2 = currentScene(story, state);
+  const cost = effectiveCost(story, state, scene2, choice);
+  const payer = spotlightPlayer(state);
+  if (cost > payer.stars) {
+    return reject("cannot_afford", `${payer.name} needs ${cost - payer.stars} more ⭐ for that.`);
+  }
+
+  if (choice.minigame) {
+    // Nothing is charged or applied yet. Stars cannot move during the minigame
+    // phase (gifts require an open scene), so resolving the cost later is
+    // equivalent and keeps every outcome in one place.
+    return {
+      ok: true,
+      state: {
+        ...state,
+        phase: "minigame",
+        minigame: {
+          choiceIndex: action.choiceIndex,
+          playerId: action.playerId,
+          spec: {
+            ...choice.minigame,
+            difficulty: effectiveDifficulty(story, state, choice.minigame),
+          },
+        },
+      },
+    };
+  }
+
   return commitChoice(story, state, action.choiceIndex, [action.playerId]);
 }
 
@@ -360,6 +409,8 @@ function commitChoice(
   state: GameState,
   choiceIndex: number,
   deciderIds: string[],
+  /** False only when a skill test was attempted and failed. */
+  passed = true,
 ): ActionResult {
   const scene = currentScene(story, state);
   const choice = scene.choices[choiceIndex];
@@ -381,7 +432,9 @@ function commitChoice(
 
   if (cost > 0) bump(payer.id, -cost);
 
-  const effects = choice.effects ?? {};
+  // A failed attempt applies failEffects (nothing, by default) and still moves
+  // the story on: a skill test costs you the prize, never the run.
+  const effects = (passed ? choice.effects : choice.failEffects) ?? {};
   if (effects.stars) for (const id of deciderIds) bump(id, effects.stars);
   if (effects.starsAll) for (const p of state.players) bump(p.id, effects.starsAll);
 
@@ -409,6 +462,7 @@ function commitChoice(
   const vars = effects.set ? { ...state.vars, ...effects.set } : state.vars;
 
   const ctx = textContext(state);
+  const attempt = choice.minigame ? { type: choice.minigame.type, passed } : null;
   const entry: LogEntry = {
     sceneId: state.sceneId,
     deciderIds,
@@ -417,6 +471,7 @@ function commitChoice(
     starsSpent: cost,
     mishapAdded,
     cluesFound,
+    minigame: attempt,
   };
 
   return {
@@ -428,20 +483,37 @@ function commitChoice(
       mishaps,
       clues,
       vars,
+      minigame: null,
       pending: {
         sceneId: state.sceneId,
         choiceIndex,
         label: entry.label,
-        text: resolveText(choice.result ?? "", ctx),
+        text: resolveText((passed ? choice.result : (choice.failResult ?? choice.result)) ?? "", ctx),
         deltas,
         gifts: state.gifts,
         mishapAdded,
         cluesFound,
-        next: choice.next ?? null,
+        minigame: attempt,
+        next: passed ? (choice.next ?? null) : (choice.failNext ?? choice.next ?? null),
       },
       log: [...state.log, entry],
     },
   };
+}
+
+function applyMinigameResult(
+  story: Story,
+  state: GameState,
+  action: Extract<Action, { type: "minigameResult" }>,
+): ActionResult {
+  if (state.phase !== "minigame" || !state.minigame) {
+    return reject("wrong_phase", "Nobody is attempting anything right now.");
+  }
+  if (action.playerId !== state.minigame.playerId) {
+    return reject("not_your_minigame", "That attempt belongs to another player.");
+  }
+
+  return commitChoice(story, state, state.minigame.choiceIndex, [action.playerId], action.passed);
 }
 
 function applyContinue(story: Story, state: GameState): ActionResult {

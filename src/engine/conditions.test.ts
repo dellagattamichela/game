@@ -16,6 +16,7 @@ const base: GameState = {
   vars: { accused: "marisol" },
   votes: {},
   gifts: [],
+  minigame: null,
   pending: null,
   endingId: null,
   log: [],

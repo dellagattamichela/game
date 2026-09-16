@@ -92,11 +92,46 @@ export type Choice = {
    * reason. For the rare gate a story wants players to know they are missing.
    */
   lockedHint?: string;
+  /**
+   * A skill test that must be passed for this choice to succeed.
+   *
+   * A choice may carry a cost or a minigame, never both: paying Stars and then
+   * failing a puzzle is two punishments for one decision, and validation refuses
+   * it. Minigames are also spotlight-only, since there is no sensible way for
+   * six people to play one puzzle at once.
+   */
+  minigame?: MinigameSpec;
   effects?: EffectSpec;
   /** Short beat shown after the choice lands, before the next scene. */
   result?: string;
   /** Next scene id. Omitted or null ends the story and resolves an ending. */
   next?: string | null;
+  /** Applied instead of `effects` when the minigame is failed. Default: nothing. */
+  failEffects?: EffectSpec;
+  /** Where a failed attempt leads. Defaults to `next`, so failing is never a dead end. */
+  failNext?: string | null;
+  /** Result text for a failed attempt. Defaults to `result`. */
+  failResult?: string;
+};
+
+/**
+ * A skill test the spotlight player has to pass, standing in for something the
+ * character is doing: picking a lock, holding a hand steady, remembering a code,
+ * scanning a page for the one line that matters.
+ *
+ * The minigame runs in the browser, but its OUTCOME is an engine action, because
+ * once rooms exist the server has to apply the effects. That does mean a client
+ * could lie about passing. For a game among friends that is an acceptable trade,
+ * and it is the same trade the design doc already makes for turn timers.
+ */
+export type MinigameType = "timing" | "memory" | "search" | "order";
+
+export type MinigameSpec = {
+  type: MinigameType;
+  /** 1 (easy) to 5 (hard). Mishaps can push this higher at runtime. */
+  difficulty?: number;
+  /** Flavour shown above the puzzle, so it reads as part of the story. */
+  prompt?: string;
 };
 
 export type SceneType = "normal" | "crisis";
@@ -124,6 +159,8 @@ export type Mishap = {
    * stay free, otherwise a mishap could lock a group out of the story entirely.
    */
   crisisCostDelta?: number;
+  /** Added to the difficulty of every later minigame. The same idea as above. */
+  minigameDifficultyDelta?: number;
 };
 
 /** Something the group has learned. Shown to players as their notebook. */
@@ -187,6 +224,8 @@ export type LogEntry = {
   starsSpent: number;
   mishapAdded: string | null;
   cluesFound: string[];
+  /** Present when the choice was a skill test, with whether it was passed. */
+  minigame: { type: MinigameType; passed: boolean } | null;
 };
 
 /** A star transfer from one player to another, within the current scene. */
@@ -214,10 +253,12 @@ export type PendingResult = {
   mishapAdded: string | null;
   /** Clues newly learned, so the result beat can call them out. */
   cluesFound: string[];
+  /** Present when the choice was a skill test, with whether it was passed. */
+  minigame: { type: MinigameType; passed: boolean } | null;
   next: string | null;
 };
 
-export type Phase = "scene" | "result" | "ended";
+export type Phase = "scene" | "minigame" | "result" | "ended";
 
 export type GameState = {
   storyId: string;
@@ -236,6 +277,16 @@ export type GameState = {
   votes: Record<string, number>;
   /** Gifts made during the current scene. Cleared between scenes. */
   gifts: Gift[];
+  /**
+   * Set while phase is "minigame": which choice is being attempted, by whom,
+   * and the spec with mishap surcharges already folded in, so every client
+   * renders the same puzzle at the same difficulty.
+   */
+  minigame: {
+    choiceIndex: number;
+    playerId: string;
+    spec: MinigameSpec & { difficulty: number };
+  } | null;
   pending: PendingResult | null;
   endingId: string | null;
   log: LogEntry[];
@@ -254,6 +305,8 @@ export type Action =
   | { type: "vote"; playerId: string; choiceIndex: number }
   /** Any scene: hand Stars to another player so they can afford a gate. */
   | { type: "give"; fromId: string; toId: string; amount: number }
+  /** Report the outcome of a skill test. Only the player attempting it may send this. */
+  | { type: "minigameResult"; playerId: string; passed: boolean }
   /** Dismiss the result beat and move to the next scene. */
   | { type: "continue"; playerId: string };
 
@@ -272,6 +325,7 @@ export type RejectionCode =
   | "unknown_player"
   | "unknown_choice"
   | "unavailable_choice"
+  | "not_your_minigame"
   | "cannot_afford"
   | "invalid_gift"
   | "already_ended";

@@ -24,6 +24,25 @@ export const advance = (story: Story, state: GameState): GameState =>
  *
  * Returns null when the choice is unavailable or unaffordable even pooled.
  */
+/**
+ * Resolves a skill test if one is open. `passRate` is the probability the
+ * simulated player succeeds, so a story can be checked both at the pass rate a
+ * competent group would hit and at the rate a struggling one would.
+ */
+export function settleMinigame(
+  story: Story,
+  state: GameState,
+  rand: () => number,
+  passRate: number,
+): GameState {
+  if (state.phase !== "minigame" || !state.minigame) return state;
+  return applyOrThrow(story, state, {
+    type: "minigameResult",
+    playerId: state.minigame.playerId,
+    passed: rand() < passRate,
+  });
+}
+
 export function takeChoice(story: Story, state: GameState, choiceIndex: number): GameState | null {
   const view = sceneView(story, state);
   const choice = view.choices[choiceIndex];
@@ -71,6 +90,7 @@ export function sampleRun(
   players: { id: string; name: string }[],
   rand: () => number,
   onScene?: SceneVisitor,
+  passRate = 0.7,
 ): GameState {
   let state = createGame(story, players, 99);
   // Bounded rather than while(true): a story with a cycle should fail loudly
@@ -86,7 +106,7 @@ export function sampleRun(
     }
     const picked = takeChoice(story, state, options[Math.floor(rand() * options.length)].index);
     if (!picked) throw new Error(`Scene "${state.sceneId}" refused a choice it offered`);
-    state = advance(story, picked);
+    state = advance(story, settleMinigame(story, picked, rand, passRate));
   }
   if (state.phase !== "ended") throw new Error("Run did not reach an ending within 500 scenes");
   return state;
@@ -111,7 +131,24 @@ export function enumerateRuns(
     const scene = story.scenes[state.sceneId];
     for (let i = 0; i < scene.choices.length; i++) {
       const chosen = takeChoice(story, state, i);
-      if (chosen) walk(advance(story, chosen));
+      if (!chosen) continue;
+      if (chosen.phase === "minigame") {
+        // Both outcomes are real branches, so both get walked.
+        for (const passed of [true, false]) {
+          walk(
+            advance(
+              story,
+              applyOrThrow(story, chosen, {
+                type: "minigameResult",
+                playerId: chosen.minigame!.playerId,
+                passed,
+              }),
+            ),
+          );
+        }
+      } else {
+        walk(advance(story, chosen));
+      }
     }
   };
 
@@ -123,7 +160,9 @@ export function enumerateRuns(
 export function estimatePaths(story: Story, cap: number): number {
   let total = 1;
   for (const scene of Object.values(story.scenes)) {
-    total *= Math.max(1, scene.choices.length);
+    // Each skill test doubles the branches below it.
+    const attempts = scene.choices.filter((c) => c.minigame).length;
+    total *= Math.max(1, scene.choices.length) * 2 ** attempts;
     if (total > cap) return Infinity;
   }
   return total;

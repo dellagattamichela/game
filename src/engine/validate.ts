@@ -47,15 +47,27 @@ const effectSpec = z
   })
   .strict();
 
+const minigame = z
+  .object({
+    type: z.enum(["timing", "memory", "search", "order"]),
+    difficulty: z.number().int().min(1).max(5).optional(),
+    prompt: z.string().optional(),
+  })
+  .strict();
+
 const choice = z
   .object({
     label: z.string().min(1),
     cost: z.number().int().min(0).optional(),
     requires: condition.optional(),
     lockedHint: z.string().min(1).optional(),
+    minigame: minigame.optional(),
     effects: effectSpec.optional(),
     result: z.string().optional(),
     next: z.string().nullable().optional(),
+    failEffects: effectSpec.optional(),
+    failNext: z.string().nullable().optional(),
+    failResult: z.string().optional(),
   })
   .strict();
 
@@ -77,6 +89,7 @@ const mishap = z
     title: z.string().min(1),
     description: z.string().optional(),
     crisisCostDelta: z.number().int().optional(),
+    minigameDifficultyDelta: z.number().int().optional(),
   })
   .strict();
 
@@ -136,7 +149,11 @@ const toArray = (v: string | string[] | undefined): string[] =>
 /** Whether any choice anywhere in the story grants this clue. */
 function grantedCluesEventually(story: Story, clueId: string): boolean {
   return Object.values(story.scenes).some((scene) =>
-    scene.choices.some((choice) => toArray(choice.effects?.addClue).includes(clueId)),
+    scene.choices.some(
+      (choice) =>
+        toArray(choice.effects?.addClue).includes(clueId) ||
+        toArray(choice.failEffects?.addClue).includes(clueId),
+    ),
   );
 }
 
@@ -159,6 +176,24 @@ function referentialProblems(story: Story): string[] {
 
       if (choice.next != null && !sceneIds.has(choice.next)) {
         problems.push(`${where}.next points at missing scene "${choice.next}"`);
+      }
+
+      if (choice.failNext != null && !sceneIds.has(choice.failNext)) {
+        problems.push(`${where}.failNext points at missing scene "${choice.failNext}"`);
+      }
+
+      if (choice.minigame) {
+        // Paying Stars and then failing a puzzle punishes one decision twice.
+        if ((choice.cost ?? 0) > 0) {
+          problems.push(`${where} has both a cost and a minigame; pick one`);
+        }
+        // Six people cannot play one puzzle, and the engine only ever hands the
+        // attempt to the spotlight player.
+        if (isGroup) {
+          problems.push(`${where} has a minigame, which group scenes cannot run`);
+        }
+      } else if (choice.failEffects || choice.failNext !== undefined || choice.failResult) {
+        problems.push(`${where} has failure handling but no minigame to fail`);
       }
 
       // Gates belong to crisis scenes only (design doc §7: "gates should appear
@@ -221,7 +256,10 @@ function referentialProblems(story: Story): string[] {
       checkCondition(choice.requires, `${where}.requires`);
 
       for (const key of ["addClue", "removeClue"] as const) {
-        for (const id of toArray(choice.effects?.[key])) {
+        for (const id of [
+          ...toArray(choice.effects?.[key]),
+          ...toArray(choice.failEffects?.[key]),
+        ]) {
           if (!clueIds.has(id)) {
             problems.push(`${where}.effects.${key} references unknown clue "${id}"`);
           } else if (key === "addClue") {
@@ -230,7 +268,10 @@ function referentialProblems(story: Story): string[] {
         }
       }
 
-      for (const [key, value] of Object.entries(choice.effects?.set ?? {})) {
+      for (const [key, value] of Object.entries({
+        ...choice.effects?.set,
+        ...choice.failEffects?.set,
+      })) {
         const spec = varSpecs[key];
         if (!spec) {
           problems.push(`${where}.effects.set uses undeclared variable "${key}"`);
@@ -302,9 +343,11 @@ function referentialProblems(story: Story): string[] {
   while (queue.length) {
     const id = queue.pop()!;
     for (const choice of story.scenes[id]?.choices ?? []) {
-      if (choice.next && !reachable.has(choice.next)) {
-        reachable.add(choice.next);
-        queue.push(choice.next);
+      for (const target of [choice.next, choice.failNext]) {
+        if (target && !reachable.has(target)) {
+          reachable.add(target);
+          queue.push(target);
+        }
       }
     }
   }
