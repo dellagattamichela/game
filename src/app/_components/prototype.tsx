@@ -8,9 +8,12 @@
  * every button dispatches an engine action — the same actions a client will send
  * to the server once rooms exist. Nothing here computes game rules locally.
  *
- * Deliberately unstyled beyond layout: the mechanic is what is being tested.
+ * Layout is the visual-novel shape the game is aiming for: the cast on a stage
+ * above, a dialog box pinned to the bottom with the speaking character on the
+ * left, and a turn announcement between scenes. The art inside it is placeholder
+ * (see character-portrait.tsx); the mechanic is what is being tested.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   applyAction,
   createGame,
@@ -20,7 +23,9 @@ import {
 } from "@/engine/engine";
 import { newSeed } from "@/engine/rng";
 import { requireStory } from "@/stories";
-import type { Action, GameState, Story } from "@/engine/types";
+import type { Action, GameState, PlayerState, SceneMode, Story } from "@/engine/types";
+import { CharacterPortrait } from "./character-portrait";
+import { TurnAnnouncement } from "./turn-announcement";
 
 const STORY_ID = "the-pilot";
 const DEFAULT_NAMES = ["Ada", "Bo", "Cy", "Di"];
@@ -30,6 +35,8 @@ export function Prototype() {
   const [names, setNames] = useState(DEFAULT_NAMES);
   const [state, setState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The last scene whose announcement has already played. */
+  const [announced, setAnnounced] = useState<string | null>(null);
 
   function dispatch(action: Action) {
     if (!state) return;
@@ -44,38 +51,67 @@ export function Prototype() {
     setState(result.state);
   }
 
-  if (!state) {
-    return (
-      <Setup
-        story={story}
-        names={names}
-        onNames={setNames}
-        onStart={() =>
-          setState(
-            createGame(
-              story,
-              names.map((name, i) => ({ id: `p${i + 1}`, name })),
-              newSeed(),
-            ),
-          )
-        }
-      />
+  function start() {
+    setAnnounced(null);
+    setError(null);
+    setState(
+      createGame(
+        story,
+        names.map((name, i) => ({ id: `p${i + 1}`, name })),
+        newSeed(),
+      ),
     );
   }
 
+  // Declared before the early return so the hook order stays stable.
+  const dismissAnnouncement = useCallback(() => {
+    setAnnounced(state?.sceneId ?? null);
+  }, [state?.sceneId]);
+
+  if (!state) {
+    return <Setup story={story} names={names} onNames={setNames} onStart={start} />;
+  }
+
+  const view = sceneView(story, state);
+  // Announce a scene once, on arrival. Comparing scene ids rather than holding a
+  // boolean means a rejected action mid-scene cannot replay the announcement.
+  const announcing = state.phase === "scene" && announced !== state.sceneId;
+
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <Header story={story} state={state} onReset={() => setState(null)} />
+    <div className="flex h-dvh flex-col">
+      <TopBar story={story} state={state} onReset={() => setState(null)} />
+
+      <Stage
+        state={state}
+        background={story.scenes[state.sceneId].background}
+        canGive={state.phase === "scene" && !announcing}
+        dispatch={dispatch}
+      />
+
       {error && (
-        <p role="alert" className="border border-red-500 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="mx-auto w-full max-w-4xl px-4 pb-2 text-sm text-red-600">
           {error}
         </p>
       )}
-      {state.phase !== "ended" && <Roster state={state} dispatch={dispatch} />}
-      {state.phase === "scene" && <SceneCard story={story} state={state} dispatch={dispatch} />}
-      {state.phase === "result" && <ResultCard state={state} dispatch={dispatch} />}
-      {state.phase === "ended" && <EndingCard story={story} state={state} />}
-    </main>
+
+      <DialogBox
+        story={story}
+        state={state}
+        mode={view.mode}
+        isCrisis={view.isCrisis}
+        dispatch={dispatch}
+      />
+
+      {announcing && (
+        <TurnAnnouncement
+          spotlight={view.spotlight}
+          cast={state.players}
+          mode={view.mode}
+          isCrisis={view.isCrisis}
+          onDone={dismissAnnouncement}
+        />
+      )}
+    </div>
   );
 }
 
@@ -92,8 +128,7 @@ function Setup({
   onNames: (names: string[]) => void;
   onStart: () => void;
 }) {
-  const tooFew = names.length < story.players.min;
-  const tooMany = names.length > story.players.max;
+  const wrongCount = names.length < story.players.min || names.length > story.players.max;
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-4 p-6">
@@ -107,7 +142,8 @@ function Setup({
           Players ({story.players.min}–{story.players.max})
         </legend>
         {names.map((name, i) => (
-          <div key={i} className="flex gap-2">
+          <div key={i} className="flex items-center gap-2">
+            <CharacterPortrait player={{ id: `p${i + 1}`, name, stars: 0 }} size={32} />
             <input
               aria-label={`Player ${i + 1} name`}
               className="flex-1 border px-2 py-1"
@@ -138,7 +174,7 @@ function Setup({
         <button
           type="button"
           className="border-2 px-4 py-1 font-semibold disabled:opacity-40"
-          disabled={tooFew || tooMany || names.some((n) => !n.trim())}
+          disabled={wrongCount || names.some((n) => !n.trim())}
           onClick={onStart}
         >
           Start
@@ -148,7 +184,7 @@ function Setup({
   );
 }
 
-function Header({
+function TopBar({
   story,
   state,
   onReset,
@@ -158,25 +194,21 @@ function Header({
   onReset: () => void;
 }) {
   return (
-    <header className="flex flex-wrap items-baseline justify-between gap-2 border-b pb-3">
-      <div>
-        <h1 className="text-xl font-bold">{story.title}</h1>
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+      <div className="flex items-baseline gap-2">
+        <h1 className="font-bold">{story.title}</h1>
         <p className="text-xs opacity-60">
           {state.phase === "ended"
             ? `${state.log.length} scenes played`
             : `scene ${state.sceneId} · ${state.log.length} resolved`}
         </p>
       </div>
-      <div className="flex items-center gap-3">
-        {state.mishaps.length > 0 && (
-          <ul className="flex flex-wrap gap-1">
-            {state.mishaps.map((id) => (
-              <li key={id} className="border border-amber-600 px-2 py-0.5 text-xs text-amber-700">
-                {story.mishaps?.[id]?.title ?? id}
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="flex items-center gap-2">
+        {state.mishaps.map((id) => (
+          <span key={id} className="border border-amber-600 px-2 py-0.5 text-xs text-amber-700">
+            {story.mishaps?.[id]?.title ?? id}
+          </span>
+        ))}
         <button type="button" className="border px-2 py-1 text-xs" onClick={onReset}>
           Restart
         </button>
@@ -186,49 +218,124 @@ function Header({
 }
 
 /**
- * The room. During a scene each other player gets a one-click "give 1 ⭐" to the
- * spotlight, because the gate moment only works if helping is easier than
- * thinking about helping.
+ * The cast, standing in a row above the dialog — the arrangement the design doc
+ * describes for the lobby and the ending screen, reused here so the same shape
+ * carries through the whole game.
+ *
+ * Each other player gets a one-click "give 1 ⭐" to the spotlight, because the
+ * gate moment only works if helping is easier than thinking about helping.
  */
-function Roster({ state, dispatch }: { state: GameState; dispatch: (a: Action) => void }) {
+function Stage({
+  state,
+  background,
+  canGive,
+  dispatch,
+}: {
+  state: GameState;
+  background?: string;
+  canGive: boolean;
+  dispatch: (a: Action) => void;
+}) {
   const spotlight = spotlightPlayer(state);
-  const canGive = state.phase === "scene";
+  const ended = state.phase === "ended";
 
   return (
-    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {state.players.map((p) => {
-        const isSpotlight = p.id === spotlight.id;
-        return (
-          <li
-            key={p.id}
-            className={`flex flex-col gap-1 border p-2 ${isSpotlight ? "border-2 font-semibold" : ""}`}
-          >
-            <span className="flex items-baseline justify-between">
-              <span>{p.name}</span>
-              <span className="tabular-nums">{p.stars} ⭐</span>
-            </span>
-            {isSpotlight ? (
-              <span className="text-xs uppercase tracking-wide opacity-60">spotlight</span>
-            ) : (
-              <button
-                type="button"
-                className="border px-1 py-0.5 text-xs disabled:opacity-30"
-                disabled={!canGive || p.stars < 1}
-                onClick={() =>
-                  dispatch({ type: "give", fromId: p.id, toId: spotlight.id, amount: 1 })
-                }
-              >
-                Give 1 ⭐ to {spotlight.name}
-              </button>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <div className="relative flex min-h-0 flex-1 items-end justify-center overflow-hidden border-b bg-neutral-100 dark:bg-neutral-900">
+      {/* Backgrounds are stage 5 art. Filling the stage with the placeholder
+          keeps the empty space reading as "art goes here" rather than as a gap,
+          and shows the framing the cast will stand in front of. */}
+      <div className="absolute inset-2 flex items-start justify-center border border-dashed opacity-40">
+        <span className="px-2 py-1 text-xs">background: {background ?? "none"}</span>
+      </div>
+
+      <ul className="relative flex flex-wrap items-end justify-center gap-4 p-6">
+        {state.players.map((p) => {
+          const isSpotlight = !ended && p.id === spotlight.id;
+          return (
+            <li key={p.id} className="flex flex-col items-center gap-1">
+              <CharacterPortrait
+                player={p}
+                size={isSpotlight ? 88 : 64}
+                dimmed={!ended && !isSpotlight}
+              />
+              <span className={`text-sm ${isSpotlight ? "font-bold" : ""}`}>
+                {p.name} <span className="tabular-nums opacity-70">{p.stars} ⭐</span>
+              </span>
+              {!ended && !isSpotlight && (
+                <button
+                  type="button"
+                  className="border px-1 py-0.5 text-xs disabled:opacity-30"
+                  disabled={!canGive || p.stars < 1}
+                  onClick={() =>
+                    dispatch({ type: "give", fromId: p.id, toId: spotlight.id, amount: 1 })
+                  }
+                >
+                  Give 1 ⭐
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
-function SceneCard({
+/** Portrait plus name for whoever the dialog is speaking as. */
+function Speaker({ players, label }: { players: PlayerState[]; label: string }) {
+  return (
+    <div className="flex shrink-0 flex-col items-center gap-1">
+      <div className="flex -space-x-4">
+        {players.map((p) => (
+          <CharacterPortrait key={p.id} player={p} size={players.length > 1 ? 44 : 72} />
+        ))}
+      </div>
+      <span className="text-sm font-semibold">{label}</span>
+    </div>
+  );
+}
+
+function DialogBox({
+  story,
+  state,
+  mode,
+  isCrisis,
+  dispatch,
+}: {
+  story: Story;
+  state: GameState;
+  mode: SceneMode;
+  isCrisis: boolean;
+  dispatch: (a: Action) => void;
+}) {
+  const spotlight = spotlightPlayer(state);
+  const isGroup = mode === "group";
+
+  // The whole cast speaks for group scenes and for the ending; otherwise the
+  // spotlight player does.
+  const speakers = isGroup || state.phase === "ended" ? state.players : [spotlight];
+  const label =
+    state.phase === "ended" ? "The room" : isGroup ? "Everyone" : spotlight.name;
+
+  return (
+    <section
+      className={`shrink-0 border-t-4 p-4 ${isCrisis && state.phase !== "ended" ? "border-red-600" : ""}`}
+    >
+      <div className="mx-auto flex w-full max-w-4xl gap-4">
+        <Speaker players={speakers} label={label} />
+        <div className="min-w-0 flex-1">
+          {state.phase === "scene" && (
+            <SceneBody story={story} state={state} dispatch={dispatch} />
+          )}
+          {state.phase === "result" && <ResultBody state={state} dispatch={dispatch} />}
+          {state.phase === "ended" && <EndingBody story={story} state={state} />}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SceneBody({
   story,
   state,
   dispatch,
@@ -241,60 +348,56 @@ function SceneCard({
   const byId = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
 
   return (
-    <section className={`flex flex-col gap-4 border p-4 ${view.isCrisis ? "border-4 border-red-600" : ""}`}>
+    <div className="flex flex-col gap-3">
       {view.isCrisis && (
         <p className="text-xs font-bold uppercase tracking-widest text-red-600">Crisis</p>
       )}
-      <p className="text-lg leading-relaxed">{view.text}</p>
+      <p className="leading-relaxed">{view.text}</p>
 
       {view.mode === "spotlight" ? (
-        <>
-          <p className="text-sm opacity-70">{view.spotlight.name} decides.</p>
-          <ul className="flex flex-col gap-2">
-            {view.choices.map((c) => (
-              <li key={c.index}>
-                <button
-                  type="button"
-                  className="w-full border px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={c.locked}
-                  onClick={() =>
-                    dispatch({ type: "choose", playerId: view.spotlight.id, choiceIndex: c.index })
-                  }
-                >
-                  {c.label}
-                  {c.cost > 0 && <strong className="ml-2">{c.cost} ⭐</strong>}
-                  {/* Locked options stay visible so the room can see what it is
-                      missing, and by exactly how much. */}
-                  {c.locked && (
-                    <em className="ml-2 text-sm not-italic opacity-70">
-                      needs {c.shortfall} more ⭐
-                    </em>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul className="flex flex-col gap-1">
+          {view.choices.map((c) => (
+            <li key={c.index}>
+              <button
+                type="button"
+                className="w-full border px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={c.locked}
+                onClick={() =>
+                  dispatch({ type: "choose", playerId: view.spotlight.id, choiceIndex: c.index })
+                }
+              >
+                {c.label}
+                {c.cost > 0 && <strong className="ml-2">{c.cost} ⭐</strong>}
+                {/* Locked options stay visible so the room can see what it is
+                    missing, and by exactly how much. */}
+                {c.locked && (
+                  <em className="ml-2 text-sm not-italic opacity-70">
+                    needs {c.shortfall} more ⭐
+                  </em>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
       ) : (
         <>
           <p className="text-sm opacity-70">
-            Everyone votes.{" "}
             {view.awaitingVotes.length > 0
               ? `Waiting on ${view.awaitingVotes.map((p) => p.name).join(", ")}.`
               : "Counting…"}
           </p>
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-2">
             {view.choices.map((c) => (
               <li key={c.index} className="border p-2">
-                <p>
+                <p className="text-sm">
                   {c.label}
                   {c.votes.length > 0 && (
-                    <span className="ml-2 text-sm opacity-70">
+                    <span className="ml-2 opacity-70">
                       — {c.votes.map((id) => byId[id]).join(", ")}
                     </span>
                   )}
                 </p>
-                <div className="mt-2 flex flex-wrap gap-1">
+                <div className="mt-1 flex flex-wrap gap-1">
                   {state.players.map((p) => (
                     <button
                       key={p.id}
@@ -302,9 +405,7 @@ function SceneCard({
                       className={`border px-2 py-0.5 text-xs ${
                         state.votes[p.id] === c.index ? "border-2 font-semibold" : ""
                       }`}
-                      onClick={() =>
-                        dispatch({ type: "vote", playerId: p.id, choiceIndex: c.index })
-                      }
+                      onClick={() => dispatch({ type: "vote", playerId: p.id, choiceIndex: c.index })}
                     >
                       {p.name}
                     </button>
@@ -315,19 +416,19 @@ function SceneCard({
           </ul>
         </>
       )}
-    </section>
+    </div>
   );
 }
 
-function ResultCard({ state, dispatch }: { state: GameState; dispatch: (a: Action) => void }) {
+function ResultBody({ state, dispatch }: { state: GameState; dispatch: (a: Action) => void }) {
   const pending = state.pending!;
   const byId = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
   const deltas = Object.entries(pending.deltas).filter(([, n]) => n !== 0);
 
   return (
-    <section className="flex flex-col gap-3 border p-4">
+    <div className="flex flex-col gap-2">
       <p className="text-sm opacity-60">{pending.label}</p>
-      {pending.text && <p className="text-lg leading-relaxed">{pending.text}</p>}
+      {pending.text && <p className="leading-relaxed">{pending.text}</p>}
 
       {pending.gifts.length > 0 && (
         <ul className="text-sm opacity-70">
@@ -350,7 +451,7 @@ function ResultCard({ state, dispatch }: { state: GameState; dispatch: (a: Actio
       )}
 
       {pending.mishapAdded && (
-        <p className="border border-amber-600 px-3 py-2 text-sm text-amber-700">
+        <p className="border border-amber-600 px-3 py-1 text-sm text-amber-700">
           Mishap collected.
         </p>
       )}
@@ -362,21 +463,21 @@ function ResultCard({ state, dispatch }: { state: GameState; dispatch: (a: Actio
       >
         {pending.next ? "Next scene" : "See how it went"}
       </button>
-    </section>
+    </div>
   );
 }
 
-function EndingCard({ story, state }: { story: Story; state: GameState }) {
+function EndingBody({ story, state }: { story: Story; state: GameState }) {
   const ending = story.endings.find((e) => e.id === state.endingId) ?? resolveEnding(story, state);
   const byId = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
 
   return (
-    <section className="flex flex-col gap-4 border-4 p-4">
+    <div className="flex max-h-[45vh] flex-col gap-3 overflow-y-auto">
       <div>
         <p className="text-xs uppercase tracking-widest opacity-60">Ending</p>
-        <h2 className="text-2xl font-bold">{ending.title}</h2>
+        <h2 className="text-xl font-bold">{ending.title}</h2>
       </div>
-      {ending.text && <p className="leading-relaxed">{ending.text}</p>}
+      {ending.text && <p className="text-sm leading-relaxed">{ending.text}</p>}
 
       {state.mishaps.length > 0 && (
         <div>
@@ -404,17 +505,6 @@ function EndingCard({ story, state }: { story: Story; state: GameState }) {
           ))}
         </ol>
       </div>
-
-      <div>
-        <h3 className="text-sm font-semibold">Stars left</h3>
-        <ul className="flex flex-wrap gap-3 text-sm">
-          {state.players.map((p) => (
-            <li key={p.id} className="tabular-nums">
-              {p.name} {p.stars} ⭐
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
+    </div>
   );
 }
