@@ -21,10 +21,11 @@ import {
   sceneView,
   spotlightPlayer,
 } from "@/engine/engine";
-import { newSeed } from "@/engine/rng";
+import { hashString, newSeed } from "@/engine/rng";
 import { STORIES, requireStory } from "@/stories";
 import type { Action, GameState, PlayerState, SceneMode, Story } from "@/engine/types";
 import { CharacterPortrait } from "./character-portrait";
+import { Minigame } from "./minigames";
 import { TurnAnnouncement } from "./turn-announcement";
 
 const DEFAULT_NAMES = ["Ada", "Bo", "Cy", "Di"];
@@ -371,9 +372,22 @@ function DialogBox({
 
   // The whole cast speaks for group scenes and for the ending; otherwise the
   // spotlight player does.
-  const speakers = isGroup || state.phase === "ended" ? state.players : [spotlight];
-  const label =
-    state.phase === "ended" ? "The room" : isGroup ? "Everyone" : spotlight.name;
+  // During a skill test the attempting player speaks, whatever the scene mode.
+  const attempting = state.minigame
+    ? (state.players.find((p) => p.id === state.minigame!.playerId) ?? spotlight)
+    : null;
+  const speakers = attempting
+    ? [attempting]
+    : isGroup || state.phase === "ended"
+      ? state.players
+      : [spotlight];
+  const label = attempting
+    ? attempting.name
+    : state.phase === "ended"
+      ? "The room"
+      : isGroup
+        ? "Everyone"
+        : spotlight.name;
 
   return (
     <section
@@ -385,6 +399,7 @@ function DialogBox({
           {state.phase === "scene" && (
             <SceneBody story={story} state={state} dispatch={dispatch} />
           )}
+          {state.phase === "minigame" && <MinigameBody state={state} dispatch={dispatch} />}
           {state.phase === "result" && <ResultBody state={state} dispatch={dispatch} />}
           {state.phase === "ended" && <EndingBody story={story} state={state} />}
         </div>
@@ -480,6 +495,32 @@ function SceneBody({
   );
 }
 
+function MinigameBody({ state, dispatch }: { state: GameState; dispatch: (a: Action) => void }) {
+  const attempt = state.minigame!;
+  const who = state.players.find((p) => p.id === attempt.playerId)!;
+  // Seeded from the run, the scene and the choice, so the same attempt always
+  // generates the same puzzle and spectators can follow along once rooms exist.
+  const seed = hashString(`${state.seed}:${state.sceneId}:${attempt.choiceIndex}`);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm">
+        <strong>{who.name}</strong> only gets one go at this.
+        <span className="ml-2 opacity-60">difficulty {attempt.spec.difficulty}/5</span>
+      </p>
+      <Minigame
+        // Remounts per attempt, so a puzzle never inherits the previous one's state.
+        key={`${state.sceneId}:${attempt.choiceIndex}`}
+        spec={attempt.spec}
+        seed={seed}
+        onDone={(passed) =>
+          dispatch({ type: "minigameResult", playerId: attempt.playerId, passed })
+        }
+      />
+    </div>
+  );
+}
+
 function ResultBody({ state, dispatch }: { state: GameState; dispatch: (a: Action) => void }) {
   const pending = state.pending!;
   const byId = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
@@ -508,6 +549,18 @@ function ResultBody({ state, dispatch }: { state: GameState; dispatch: (a: Actio
             </li>
           ))}
         </ul>
+      )}
+
+      {pending.minigame && (
+        <p
+          className={`border px-3 py-1 text-sm ${
+            pending.minigame.passed
+              ? "border-emerald-600 text-emerald-700"
+              : "border-red-600 text-red-600"
+          }`}
+        >
+          {pending.minigame.passed ? "Passed." : "Failed."}
+        </p>
       )}
 
       {pending.cluesFound.length > 0 && (
