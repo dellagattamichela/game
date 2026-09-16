@@ -1,0 +1,130 @@
+/**
+ * Playthrough simulation, for tooling and tests. Not used by the game itself.
+ *
+ * Both `npm run scenarios` and the story tests drive stories through here, so a
+ * coverage number in the report and a coverage assertion in CI can never
+ * disagree about what "a run" means.
+ */
+import { applyAction, createGame, sceneView, totalStars } from "./engine";
+import type { Action, GameState, Story } from "./types";
+
+export function applyOrThrow(story: Story, state: GameState, action: Action): GameState {
+  const result = applyAction(story, state, action);
+  if (!result.ok) throw new Error(`${action.type} rejected: ${result.message}`);
+  return result.state;
+}
+
+export const advance = (story: Story, state: GameState): GameState =>
+  applyOrThrow(story, state, { type: "continue", playerId: state.players[0].id });
+
+/**
+ * Resolves the current scene toward `choiceIndex`, pooling the room's Stars if
+ * the spotlight player cannot cover a gate alone — which is what a real table
+ * does, and therefore what the coverage numbers should assume.
+ *
+ * Returns null when the choice is unavailable or unaffordable even pooled.
+ */
+export function takeChoice(story: Story, state: GameState, choiceIndex: number): GameState | null {
+  const view = sceneView(story, state);
+  const choice = view.choices[choiceIndex];
+  if (!choice || !choice.available) return null;
+
+  if (view.mode === "group") {
+    return state.players.reduce(
+      (acc, p) => applyOrThrow(story, acc, { type: "vote", playerId: p.id, choiceIndex }),
+      state,
+    );
+  }
+
+  let working = state;
+  if (choice.cost > view.spotlight.stars) {
+    if (totalStars(state) < choice.cost) return null;
+    for (const donor of state.players) {
+      if (donor.id === view.spotlight.id) continue;
+      const need = choice.cost - working.players[working.spotlightIndex].stars;
+      if (need <= 0) break;
+      const give = Math.min(need, working.players.find((p) => p.id === donor.id)!.stars);
+      if (give > 0) {
+        working = applyOrThrow(story, working, {
+          type: "give",
+          fromId: donor.id,
+          toId: view.spotlight.id,
+          amount: give,
+        });
+      }
+    }
+  }
+
+  return applyOrThrow(story, working, {
+    type: "choose",
+    playerId: view.spotlight.id,
+    choiceIndex,
+  });
+}
+
+/** Called on every scene before it is resolved, for collecting statistics. */
+export type SceneVisitor = (state: GameState) => void;
+
+/** One random playthrough, picking uniformly among the choices a table could take. */
+export function sampleRun(
+  story: Story,
+  players: { id: string; name: string }[],
+  rand: () => number,
+  onScene?: SceneVisitor,
+): GameState {
+  let state = createGame(story, players, 99);
+  // Bounded rather than while(true): a story with a cycle should fail loudly
+  // here instead of hanging whatever called us.
+  for (let step = 0; step < 500 && state.phase !== "ended"; step++) {
+    onScene?.(state);
+    const view = sceneView(story, state);
+    const options = view.choices.filter(
+      (c) => c.available && (view.mode === "group" || c.cost <= totalStars(state)),
+    );
+    if (options.length === 0) {
+      throw new Error(`Scene "${state.sceneId}" offers no choice this room could take`);
+    }
+    const picked = takeChoice(story, state, options[Math.floor(rand() * options.length)].index);
+    if (!picked) throw new Error(`Scene "${state.sceneId}" refused a choice it offered`);
+    state = advance(story, picked);
+  }
+  if (state.phase !== "ended") throw new Error("Run did not reach an ending within 500 scenes");
+  return state;
+}
+
+/** Every distinct playthrough, up to `limit` endings. */
+export function enumerateRuns(
+  story: Story,
+  players: { id: string; name: string }[],
+  limit: number,
+  onScene?: SceneVisitor,
+): GameState[] {
+  const out: GameState[] = [];
+
+  const walk = (state: GameState) => {
+    if (out.length >= limit) return;
+    if (state.phase === "ended") {
+      out.push(state);
+      return;
+    }
+    onScene?.(state);
+    const scene = story.scenes[state.sceneId];
+    for (let i = 0; i < scene.choices.length; i++) {
+      const chosen = takeChoice(story, state, i);
+      if (chosen) walk(advance(story, chosen));
+    }
+  };
+
+  walk(createGame(story, players, 99));
+  return out;
+}
+
+/** Upper bound on distinct paths. Used only to choose a strategy. */
+export function estimatePaths(story: Story, cap: number): number {
+  let total = 1;
+  for (const scene of Object.values(story.scenes)) {
+    total *= Math.max(1, scene.choices.length);
+    if (total > cap) return Infinity;
+  }
+  return total;
+}

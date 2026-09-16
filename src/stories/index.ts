@@ -7,9 +7,10 @@
  */
 import type { Story } from "@/engine/types";
 import { validateStory } from "@/engine/validate";
+import stranded from "./stranded.json";
 import thePilot from "./the-pilot.json";
 
-export const STORIES: Story[] = [thePilot].map(validateStory);
+export const STORIES: Story[] = [thePilot, stranded].map(validateStory);
 
 export function getStory(id: string): Story | undefined {
   return STORIES.find((s) => s.id === id);

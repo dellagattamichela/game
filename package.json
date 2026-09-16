@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "balance": "vite-node -c vitest.config.mts scripts/balance.ts"
+    "scenarios": "vite-node -c vitest.config.mts scripts/scenarios.ts"
   },
   "dependencies": {
     "next": "16.3.5",

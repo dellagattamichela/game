@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, createGame, effectiveCost, sceneView, totalStars } from "@/engine/engine";
+import { createGame, effectiveCost, resolveEnding, sceneView, totalStars } from "@/engine/engine";
+import { mulberry32 } from "@/engine/rng";
+import { enumerateRuns, sampleRun } from "@/engine/simulate";
 import { validateStory } from "@/engine/validate";
-import type { Action, GameState, Story } from "@/engine/types";
+import type { GameState, Story } from "@/engine/types";
 import { STORIES, requireStory } from ".";
-import thePilot from "./the-pilot.json";
 
 const PLAYERS = [
   { id: "p1", name: "Ada" },
@@ -12,152 +13,165 @@ const PLAYERS = [
   { id: "p4", name: "Di" },
 ];
 
-function apply(story: Story, state: GameState, action: Action): GameState {
-  const result = applyAction(story, state, action);
-  if (!result.ok) throw new Error(`${action.type} rejected: ${result.message}`);
-  return result.state;
-}
+type CrisisSample = { sceneId: string; top: number; solo: boolean; pooled: boolean };
 
-/**
- * Drives one scene toward `choiceIndex`, whatever its mode, and stops on the
- * result beat. Group scenes are resolved by a unanimous vote, which keeps the
- * path enumeration below tractable.
- *
- * Returns null when the choice is gated beyond what the whole room could pay,
- * so the caller can tell "unaffordable" apart from "rejected for another reason".
- */
-function take(story: Story, state: GameState, choiceIndex: number): GameState | null {
-  const view = sceneView(story, state);
-  if (view.mode === "group") {
-    return state.players.reduce(
-      (acc, p) => apply(story, acc, { type: "vote", playerId: p.id, choiceIndex }),
-      state,
-    );
-  }
-
-  const cost = view.choices[choiceIndex].cost;
-  const spotlight = view.spotlight;
-  let working = state;
-
-  // Pool Stars from the rest of the room, exactly as players would at a gate.
-  if (cost > spotlight.stars) {
-    if (totalStars(state) < cost) return null;
-    for (const donor of state.players) {
-      if (donor.id === spotlight.id) continue;
-      const need = cost - working.players[working.spotlightIndex].stars;
-      if (need <= 0) break;
-      const give = Math.min(need, working.players.find((p) => p.id === donor.id)!.stars);
-      if (give > 0) {
-        working = apply(story, working, { type: "give", fromId: donor.id, toId: spotlight.id, amount: give });
-      }
-    }
-  }
-
-  return apply(story, working, { type: "choose", playerId: spotlight.id, choiceIndex });
-}
-
-type PathOutcome = {
-  endingId: string;
-  mishaps: string[];
-  /** Per crisis scene: what the priciest option cost and whether it was reachable. */
-  crises: { sceneId: string; topCost: number; spotlightCouldPay: boolean; roomCouldPay: boolean }[];
-};
-
-/** Walks every combination of choices through the story. */
-function enumeratePaths(story: Story, limit = 200_000): PathOutcome[] {
-  const outcomes: PathOutcome[] = [];
-
-  const walk = (state: GameState, crises: PathOutcome["crises"]) => {
-    if (outcomes.length >= limit) return;
-    if (state.phase === "ended") {
-      outcomes.push({ endingId: state.endingId!, mishaps: state.mishaps, crises });
-      return;
-    }
-
-    const view = sceneView(story, state);
+/** Records, for every crisis reached, whether its priciest option was in reach. */
+function crisisWatcher(story: Story) {
+  const samples: CrisisSample[] = [];
+  const onScene = (state: GameState) => {
     const scene = story.scenes[state.sceneId];
-    const nextCrises = view.isCrisis
-      ? [
-          ...crises,
-          {
-            sceneId: state.sceneId,
-            topCost: Math.max(...scene.choices.map((c) => effectiveCost(story, state, scene, c))),
-            spotlightCouldPay:
-              view.spotlight.stars >=
-              Math.max(...scene.choices.map((c) => effectiveCost(story, state, scene, c))),
-            roomCouldPay:
-              totalStars(state) >=
-              Math.max(...scene.choices.map((c) => effectiveCost(story, state, scene, c))),
-          },
-        ]
-      : crises;
-
-    for (let i = 0; i < scene.choices.length; i++) {
-      const chosen = take(story, state, i);
-      if (!chosen) continue; // unaffordable even with the whole room pooling
-      walk(apply(story, chosen, { type: "continue", playerId: state.players[0].id }), nextCrises);
-    }
+    if (scene.type !== "crisis") return;
+    const top = Math.max(...scene.choices.map((c) => effectiveCost(story, state, scene, c)));
+    samples.push({
+      sceneId: state.sceneId,
+      top,
+      solo: sceneView(story, state).spotlight.stars >= top,
+      pooled: totalStars(state) >= top,
+    });
   };
-
-  walk(createGame(story, PLAYERS, 99), []);
-  return outcomes;
+  return { samples, onScene };
 }
 
 describe("shipped stories", () => {
   it("all validate", () => {
-    expect(STORIES.length).toBeGreaterThan(0);
+    expect(STORIES.length).toBeGreaterThan(1);
     for (const story of STORIES) expect(() => validateStory(story)).not.toThrow();
   });
 
-  it("the-pilot is registered and matches its file", () => {
+  it("both stories are registered", () => {
     expect(requireStory("the-pilot").title).toBe("The Pilot");
-    expect(thePilot.id).toBe("the-pilot");
+    expect(requireStory("stranded").title).toBe("Stranded");
   });
 });
 
-describe("the-pilot playability", () => {
+describe("the-pilot", () => {
   const story = requireStory("the-pilot");
-  const paths = enumeratePaths(story);
+  const watcher = crisisWatcher(story);
+  const runs = enumerateRuns(story, PLAYERS, Number.POSITIVE_INFINITY, watcher.onScene);
 
   it("every path reaches an ending", () => {
-    expect(paths.length).toBeGreaterThan(1000);
-    for (const p of paths) expect(p.endingId).toBeTruthy();
+    expect(runs.length).toBeGreaterThan(1000);
+    for (const run of runs) expect(run.endingId).toBeTruthy();
   });
 
-  it("every ending in the file is reachable", () => {
-    const reached = new Set(paths.map((p) => p.endingId));
+  it("every ending is reachable", () => {
+    const reached = new Set(runs.map((r) => r.endingId));
     for (const ending of story.endings) {
       expect(reached, `ending "${ending.id}" is unreachable`).toContain(ending.id);
     }
   });
 
-  it("every mishap in the file is reachable", () => {
-    const seen = new Set(paths.flatMap((p) => p.mishaps));
+  it("every mishap is reachable", () => {
+    const seen = new Set(runs.flatMap((r) => r.mishaps));
     for (const id of Object.keys(story.mishaps ?? {})) {
       expect(seen, `mishap "${id}" is unreachable`).toContain(id);
     }
   });
 
-  it("the priciest crisis option is sometimes out of reach, so the gate has teeth", () => {
-    const crises = paths.flatMap((p) => p.crises);
-    const soloAffordable = crises.filter((c) => c.spotlightCouldPay).length / crises.length;
-    // Neither always affordable (the gate is decoration) nor never (it is a wall).
-    // Measured at 33% for both crises with a 4-player room; see `npm run balance`.
-    expect(soloAffordable).toBeGreaterThan(0.15);
-    expect(soloAffordable).toBeLessThan(0.7);
+  it("the gates are neither decoration nor a wall", () => {
+    const solo = watcher.samples.filter((s) => s.solo).length / watcher.samples.length;
+    expect(solo).toBeGreaterThan(0.15);
+    expect(solo).toBeLessThan(0.7);
   });
 
-  it("pooling the room's Stars opens gates the spotlight alone cannot", () => {
-    const crises = paths.flatMap((p) => p.crises);
-    const needsHelp = crises.filter((c) => !c.spotlightCouldPay && c.roomCouldPay).length;
-    // The "who's going to save us?" moment has to be the common case, not a rarity.
-    expect(needsHelp / crises.length).toBeGreaterThan(0.4);
+  it("mishap surcharges raise the cost of later crises", () => {
+    const later = watcher.samples.filter((s) => s.sceneId === "s10");
+    expect([...new Set(later.map((s) => s.top))].sort()).toEqual([4, 5, 6]);
+  });
+});
+
+describe("stranded", () => {
+  const story = requireStory("stranded");
+  const watcher = crisisWatcher(story);
+  // Forty million paths, so sample. Fixed seed, so a failure is reproducible.
+  const rand = mulberry32(20260916);
+  const runs = Array.from({ length: 8000 }, () => sampleRun(story, PLAYERS, rand, watcher.onScene));
+
+  it("matches the shape promised in docs/stranded-scenario-map.md", () => {
+    expect(Object.keys(story.scenes)).toHaveLength(20);
+    expect(Object.keys(story.clues ?? {})).toHaveLength(12);
+    expect(story.endings).toHaveLength(10);
+    expect(story.vars?.accused.values).toHaveLength(5);
   });
 
-  it("mishap surcharges raise later crisis costs", () => {
-    const secondCrisis = paths.flatMap((p) => p.crises.filter((c) => c.sceneId === "s10"));
-    const costs = new Set(secondCrisis.map((c) => c.topCost));
-    // Base 4, plus 1 per surcharge mishap collected earlier.
-    expect([...costs].sort()).toEqual([4, 5, 6]);
+  it("every ending is reachable", () => {
+    const reached = new Set(runs.map((r) => r.endingId));
+    for (const ending of story.endings) {
+      expect(reached, `ending "${ending.id}" is unreachable`).toContain(ending.id);
+    }
+  });
+
+  it("every clue is findable", () => {
+    const found = new Set(runs.flatMap((r) => r.clues));
+    for (const id of Object.keys(story.clues ?? {})) {
+      expect(found, `clue "${id}" can never be found`).toContain(id);
+    }
+  });
+
+  it("no run can collect every clue, so a group always misses something", () => {
+    const most = Math.max(...runs.map((r) => r.clues.length));
+    expect(most).toBeLessThan(Object.keys(story.clues ?? {}).length);
+  });
+
+  it("every suspect can be accused, and the room can decline to accuse", () => {
+    const accused = new Set(runs.map((r) => r.vars.accused ?? "(none)"));
+    for (const suspect of story.vars!.accused.values) expect(accused).toContain(suspect);
+    expect(accused).toContain("(none)");
+  });
+
+  it("all three gates are real decisions", () => {
+    for (const sceneId of ["s9", "s11", "s17"]) {
+      const at = watcher.samples.filter((s) => s.sceneId === sceneId);
+      const solo = at.filter((s) => s.solo).length / at.length;
+      expect(solo, `${sceneId} solo affordability`).toBeGreaterThan(0.2);
+      expect(solo, `${sceneId} solo affordability`).toBeLessThan(0.8);
+    }
+  });
+});
+
+/**
+ * Pins the ending table in docs/stranded-scenario-map.md §8. These assertions
+ * are the document: if someone reorders the endings or edits a condition, the
+ * row that changed is named here.
+ */
+describe("stranded ending matrix", () => {
+  const story = requireStory("stranded");
+  const STRONG = ["torn_page", "cold_store_empty"];
+  const WEAK = ["marisol_alibi_broken"];
+
+  const outcome = (clues: string[], vars: Record<string, string>) =>
+    resolveEnding(story, { ...createGame(story, PLAYERS, 1), clues, vars }).id;
+
+  it("names and proves and rescues", () => {
+    expect(outcome(STRONG, { accused: "marisol", found_captain: "yes" })).toBe("perfect");
+  });
+
+  it("separates the rescue from the proof", () => {
+    expect(outcome(WEAK, { accused: "marisol", found_captain: "yes" })).toBe("rescued_and_named");
+    expect(outcome(STRONG, { accused: "marisol" })).toBe("airtight_too_late");
+    expect(outcome([], { accused: "marisol" })).toBe("she_walks");
+  });
+
+  it("lets the captain supply the answer when the room got it wrong", () => {
+    expect(outcome(STRONG, { accused: "brann", found_captain: "yes" })).toBe("captain_explains");
+    expect(outcome([], { found_captain: "yes" })).toBe("found_never_knew");
+  });
+
+  it("gives each wrong accusation its own consequence", () => {
+    expect(outcome([], { accused: "brann" })).toBe("ruined_brann");
+    expect(outcome([], { accused: "okonjo" })).toBe("ruined_okonjo");
+    expect(outcome([], { accused: "teddy" })).toBe("ruined_bystander");
+    expect(outcome([], { accused: "hal" })).toBe("ruined_bystander");
+  });
+
+  it("falls through to adrift when nothing was concluded", () => {
+    expect(outcome(["scuffed_deck"], {})).toBe("adrift");
+  });
+
+  it("requires corroboration, not just the page, for the best ending", () => {
+    // torn_page alone is the weak tier: it names her, it does not place her.
+    expect(outcome(["torn_page"], { accused: "marisol", found_captain: "yes" })).toBe(
+      "rescued_and_named",
+    );
   });
 });

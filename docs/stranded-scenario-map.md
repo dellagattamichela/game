@@ -5,7 +5,9 @@ what is true, what can be found, and where every run can end up.*
 
 Companion: `npm run scenarios -- stranded` generates the coverage report that
 checks this document against the actual story file — every clue findable, every
-ending reachable, no orphan scenes.
+ending reachable, no orphan scenes. The ending table in §8 is also pinned by
+tests in `src/stories/stories.test.ts`, so editing a condition without editing
+this document fails the suite.
 
 ---
 
@@ -120,11 +122,14 @@ ACT 2 — THE SEARCH
   s7  spot   The generators cough
   s8  spot   Search #2: the two rooms you have not been in
   s9  CRISIS Brann confines everyone to cabins
-               free  -> comply, skip the third search    -> s12
-               3 ⭐  -> talk him down                     -> s10
-               5 ⭐  -> take the bridge with him watching -> s10, +1 ⭐ all
+               free  -> comply, take a mishap, skip the third search -> s11
+               2 ⭐  -> talk him down                                -> s10
+               5 ⭐  -> name his promotion date (needs brann_promotion) -> s10
   s10 spot   Search #3: the last room
-  s11 spot   Teddy wants something for the footage -> teddy_footage
+  s11 CRISIS Teddy wants something for the footage
+               free  -> refuse, take a mishap
+               2 ⭐  -> pay his price   -> teddy_footage
+               4 ⭐  -> put him in the story -> teddy_footage, +1 ⭐ all
   s12 group   Who do we like for this?
   s13 spot   Confront Marisol             -> marisol_alibi_broken (gated)
   s14 spot   The galley bin / the crate   -> torn_page | smuggling_crate (gated)
@@ -132,7 +137,10 @@ ACT 2 — THE SEARCH
 ACT 3 — THE ACCUSATION
   s15 group  The generators are going. What matters most now?
   s16 spot   The one room nobody has opened -> found_captain (gated)
-  s17 CRISIS The muster bell. Last chance to change your mind
+  s17 CRISIS Brann asks for your evidence, correctly
+               free  -> hand it over    -> LOSES torn_page
+               3 ⭐  -> refuse
+               6 ⭐  -> hand over a copy -> +1 ⭐ all
   s18 group  THE ACCUSATION -> sets `accused`
   s19 spot   What you say next
   s20 spot   Dawn                          -> ending
@@ -197,7 +205,30 @@ Endings 5 and 6 are the ones that make the structure worth the effort: the group
 gets the *man* back without getting the *answer*, which is a genuinely different
 kind of win and impossible to express with a single counter.
 
-## 9. Rules this story sets
+## 9. Measured balance
+
+From `npm run scenarios -- stranded 4`, 60,000 sampled runs:
+
+| Gate | Best option costs | Affordable alone | Needs the table |
+|---|---|---|---|
+| s9 | 5 | 59% | 41% |
+| s11 | 4–5 | 54% | 46% |
+| s17 | 6–7 | 33% | 67% |
+
+The gates get harder as the story goes on, which is what you want: by the last
+one the room is usually deciding together whether the evidence is worth
+everything they have left.
+
+**Clues per run: 5 minimum, 7.3 average, 11 maximum of 12.** No run can collect
+all twelve, so every group finishes with something they never found.
+
+One caveat on the ending percentages in that report: sampling picks **uniformly
+among the options a table could take**, which is not how a table plays. A real
+group that has found the key will open the cold store; the sampler opens it a
+third of the time. So read those numbers as the shape of the possibility space,
+not as the odds of any particular group getting a particular ending.
+
+## 10. Rules this story sets
 
 Decisions specific to Stranded, which differ from The Pilot:
 
@@ -210,11 +241,11 @@ Decisions specific to Stranded, which differ from The Pilot:
 - **The rescue is separable from the solution.** Deliberately. It is what stops
   the story being a single pass/fail.
 
-## 10. Open questions
+## 11. Open questions
 
 1. Does s12's "who do we like for this?" vote need to *do* anything mechanically,
    or is committing to a name out loud enough on its own?
-2. Nine of twelve clues is the ceiling. Is that the right amount of missing, or
-   should a very good run be able to get all twelve?
+2. Eleven of twelve clues is the measured ceiling. Is that the right amount of
+   missing, or should a perfect run be able to get all twelve?
 3. Should a wrong accusation still allow the rescue afterwards, or is the
    accusation genuinely the last beat?

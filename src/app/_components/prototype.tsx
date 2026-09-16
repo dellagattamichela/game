@@ -22,16 +22,16 @@ import {
   spotlightPlayer,
 } from "@/engine/engine";
 import { newSeed } from "@/engine/rng";
-import { requireStory } from "@/stories";
+import { STORIES, requireStory } from "@/stories";
 import type { Action, GameState, PlayerState, SceneMode, Story } from "@/engine/types";
 import { CharacterPortrait } from "./character-portrait";
 import { TurnAnnouncement } from "./turn-announcement";
 
-const STORY_ID = "the-pilot";
 const DEFAULT_NAMES = ["Ada", "Bo", "Cy", "Di"];
 
 export function Prototype() {
-  const story = useMemo(() => requireStory(STORY_ID), []);
+  const [storyId, setStoryId] = useState(STORIES[0].id);
+  const story = useMemo(() => requireStory(storyId), [storyId]);
   const [names, setNames] = useState(DEFAULT_NAMES);
   const [state, setState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +69,16 @@ export function Prototype() {
   }, [state?.sceneId]);
 
   if (!state) {
-    return <Setup story={story} names={names} onNames={setNames} onStart={start} />;
+    return (
+      <Setup
+        story={story}
+        storyId={storyId}
+        onStoryId={setStoryId}
+        names={names}
+        onNames={setNames}
+        onStart={start}
+      />
+    );
   }
 
   const view = sceneView(story, state);
@@ -82,6 +91,7 @@ export function Prototype() {
       <TopBar story={story} state={state} onReset={() => setState(null)} />
 
       <Stage
+        story={story}
         state={state}
         background={story.scenes[state.sceneId].background}
         canGive={state.phase === "scene" && !announcing}
@@ -119,11 +129,15 @@ export function Prototype() {
 
 function Setup({
   story,
+  storyId,
+  onStoryId,
   names,
   onNames,
   onStart,
 }: {
   story: Story;
+  storyId: string;
+  onStoryId: (id: string) => void;
   names: string[];
   onNames: (names: string[]) => void;
   onStart: () => void;
@@ -133,9 +147,27 @@ function Setup({
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-4 p-6">
       <h1 className="text-2xl font-bold">Pilot Season</h1>
-      <p className="text-sm opacity-70">
-        {story.title}: {story.hook} Everyone starts with {story.startingStars} ⭐.
-      </p>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-semibold">Story</legend>
+        {STORIES.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onStoryId(s.id)}
+            className={`border p-2 text-left ${s.id === storyId ? "border-2 font-semibold" : "opacity-70"}`}
+          >
+            <span className="block">{s.title}</span>
+            <span className="block text-xs font-normal opacity-70">{s.hook}</span>
+            <span className="block text-xs font-normal opacity-50">
+              {Object.keys(s.scenes).length} scenes
+              {s.clues ? ` · ${Object.keys(s.clues).length} clues` : ""} · {s.endings.length} endings
+            </span>
+          </button>
+        ))}
+      </fieldset>
+
+      <p className="text-sm opacity-70">Everyone starts with {story.startingStars} ⭐.</p>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-semibold">
@@ -226,11 +258,13 @@ function TopBar({
  * gate moment only works if helping is easier than thinking about helping.
  */
 function Stage({
+  story,
   state,
   background,
   canGive,
   dispatch,
 }: {
+  story: Story;
   state: GameState;
   background?: string;
   canGive: boolean;
@@ -247,6 +281,30 @@ function Stage({
       <div className="absolute inset-2 flex items-start justify-center border border-dashed opacity-40">
         <span className="px-2 py-1 text-xs">background: {background ?? "none"}</span>
       </div>
+
+      {/* The notebook. An investigation is only legible if the room can see
+          what it already knows, so it sits on screen rather than behind a tab. */}
+      {story.clues && (
+        <div className="absolute left-3 top-10 max-h-[70%] w-56 overflow-y-auto text-xs">
+          <p className="mb-1 font-semibold uppercase tracking-wide opacity-60">
+            Notebook {state.clues.length}/{Object.keys(story.clues).length}
+          </p>
+          {state.clues.length === 0 ? (
+            <p className="opacity-40">Nothing yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {state.clues.map((id) => (
+                <li key={id} className="border-l-2 pl-2">
+                  <span className="block">{story.clues![id]?.title ?? id}</span>
+                  {story.clues![id]?.description && (
+                    <span className="block opacity-50">{story.clues![id].description}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <ul className="relative flex flex-wrap items-end justify-center gap-4 p-6">
         {state.players.map((p) => {
@@ -356,28 +414,28 @@ function SceneBody({
 
       {view.mode === "spotlight" ? (
         <ul className="flex flex-col gap-1">
-          {view.choices.map((c) => (
-            <li key={c.index}>
-              <button
-                type="button"
-                className="w-full border px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={c.locked}
-                onClick={() =>
-                  dispatch({ type: "choose", playerId: view.spotlight.id, choiceIndex: c.index })
-                }
-              >
-                {c.label}
-                {c.cost > 0 && <strong className="ml-2">{c.cost} ⭐</strong>}
-                {/* Locked options stay visible so the room can see what it is
-                    missing, and by exactly how much. */}
-                {c.locked && (
-                  <em className="ml-2 text-sm not-italic opacity-70">
-                    needs {c.shortfall} more ⭐
-                  </em>
-                )}
-              </button>
-            </li>
-          ))}
+          {/* Hidden choices are not rendered at all. A Star gate is shown locked
+              with its price, but a clue gate must not admit it exists. */}
+          {view.choices
+            .filter((c) => !c.hidden)
+            .map((c) => (
+              <li key={c.index}>
+                <button
+                  type="button"
+                  className="w-full border px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={c.locked}
+                  onClick={() =>
+                    dispatch({ type: "choose", playerId: view.spotlight.id, choiceIndex: c.index })
+                  }
+                >
+                  {c.label}
+                  {c.cost > 0 && <strong className="ml-2">{c.cost} ⭐</strong>}
+                  {c.lockedReason && (
+                    <em className="ml-2 text-sm not-italic opacity-70">{c.lockedReason}</em>
+                  )}
+                </button>
+              </li>
+            ))}
         </ul>
       ) : (
         <>
@@ -387,7 +445,9 @@ function SceneBody({
               : "Counting…"}
           </p>
           <ul className="flex flex-col gap-2">
-            {view.choices.map((c) => (
+            {view.choices
+              .filter((c) => !c.hidden)
+              .map((c) => (
               <li key={c.index} className="border p-2">
                 <p className="text-sm">
                   {c.label}
@@ -448,6 +508,13 @@ function ResultBody({ state, dispatch }: { state: GameState; dispatch: (a: Actio
             </li>
           ))}
         </ul>
+      )}
+
+      {pending.cluesFound.length > 0 && (
+        <p className="border border-sky-600 px-3 py-1 text-sm text-sky-700">
+          {pending.cluesFound.length === 1 ? "Clue found" : `${pending.cluesFound.length} clues found`}
+          {" — added to the notebook."}
+        </p>
       )}
 
       {pending.mishapAdded && (
