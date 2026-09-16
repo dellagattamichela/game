@@ -50,7 +50,7 @@ The lobby shows every player's character standing in a row, a ready indicator ab
 
 ### Art format
 
-Characters are small pixel-art sprites built from stacked layers. A good starting size is **32×32 pixels** per sprite (enough detail for faces and hair, still quick to draw), displayed scaled up 4× to 6× with crisp pixels (`image-rendering: pixelated` in CSS). If your example character uses a different size, the whole system should follow that size instead; the layer approach stays the same.
+Characters are small pixel-art sprites built from stacked layers. **Note that characters will not have a lower body; only the upper part (torso and head) will be visible.** A good starting size is **32×32 pixels** per sprite (enough detail for faces and hair, still quick to draw), displayed scaled up 4× to 6× with crisp pixels (`image-rendering: pixelated` in CSS). If the example character uses a different size, the whole system should follow that size instead; the layer approach stays the same.
 
 ### Layers
 
@@ -69,7 +69,7 @@ Each character is drawn by stacking these layers in order, back to front. Every 
 | 9 | Hair (front) | 8 to 12 styles |
 | 10 | Accessory | Glasses, cap, headphones, none |
 
-You mentioned a choice like male or female. A flexible way to handle that is to offer it as a **body type** preset that sets sensible defaults, while still letting any hair, outfit and face option be picked with any body. Players get quick starting points and full freedom, and you draw fewer assets overall.
+A flexible way to handle choices like male or female is to offer them as a **body type** preset that sets sensible defaults, while still letting any hair, outfit and face option be picked with any body. Players get quick starting points and full freedom, and fewer assets need to be drawn overall.
 
 ### Colors without extra art
 
@@ -92,7 +92,6 @@ A character is just a small list of choices, which makes it cheap to save and to
   "mouth": 2,
   "top": 5,
   "topColor": 1,
-  "bottom": 0,
   "accessory": null
 }
 ```
@@ -146,7 +145,7 @@ sequenceDiagram
 
 ## 7. Points and gated choices
 
-This is the mechanic you described: most choices are free, but at a few important moments some options require points, and the free option is usually the worse one.
+Most choices are free, but at a few important moments some options require points, and the free option is usually the worse one.
 
 ### What the points are
 
@@ -309,7 +308,7 @@ Stage 1 matters most: if the story and the point decisions are fun on one screen
 
 These are the decisions still to make, roughly in order of importance:
 
-1. **Your character reference:** the exact sprite size and style will shape the whole art pipeline.
+1. **Character reference:** the exact sprite size and style will shape the whole art pipeline.
 2. **Which story comes first,** and roughly how long it should be.
 3. **Points design:** single Stars currency or three stats; spend or threshold; whether teammates can give points.
 4. **Losing:** can a story end badly, or does every run reach some kind of ending?
