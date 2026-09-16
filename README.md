@@ -85,9 +85,12 @@ name rather than three scenes into a playthrough.
 
 Placeholders: `{spotlight}`, `{randomPlayer}` (never the spotlight), `{everyone}`.
 
-Rules the validator enforces: `next` must point at a real scene, only crisis
-scenes carry costs, group scenes carry none, every scene must be reachable, and
-the last ending must have no `requires` so every run lands somewhere.
+Rules the validator enforces: `next` and `failNext` must point at real scenes,
+only crisis scenes carry costs, group scenes carry neither costs nor skill tests,
+no choice carries both a cost and a skill test, every scene must be reachable,
+every declared clue must be findable somewhere and every declared variable value
+must be set somewhere, and the last ending must have no `requires` so every run
+lands somewhere.
 
 ### Checking a story
 
@@ -96,7 +99,7 @@ every ending is reachable, whether every clue is findable, and whether each
 crisis gate is a real decision.
 
 ```bash
-npm run scenarios -- stranded 4     # story id, player count
+npm run scenarios -- stranded 4 0.7   # story id, player count, skill-test pass rate
 ```
 
 ```
@@ -115,7 +118,9 @@ wall. The gap is how often the room has to chip in, which is the moment the
 mechanic exists to create. An ending marked `← UNREACHABLE` exits non-zero.
 
 Small stories are walked exhaustively (78,732 paths for The Pilot). Stranded has
-tens of millions, so it samples from a fixed seed instead. Sampling picks
+far more than that, so it samples from a fixed seed instead. The pass rate lets
+you check a story both at the rate a confident group hits and at the rate a
+struggling one does; Stranded keeps every ending reachable from 35% to 95%. Sampling picks
 uniformly among takeable options, which is not how a group plays — read the
 percentages as the shape of the space, not as predicted outcomes.
 
@@ -124,22 +129,33 @@ percentages as the shape of the space, not as predicted outcomes.
 **The Pilot** — 12 scenes, comedy, one branch, endings keyed on mishaps. Short,
 and the one to teach the game with.
 
-**Stranded** — 20 scenes, a closed-circle mystery, 12 clues and 10 endings.
-Endings depend on *who* the room accuses, *what* it can prove, and whether anyone
-thought to open the one door nobody opened. See
+**Stranded** — 36 scenes, a closed-circle mystery: 21 clues, 8 skill tests, 4
+crisis gates and 12 endings, running roughly 50 to 70 minutes. Endings depend on
+*who* the room accuses, *what* it can prove, whether anyone thought to open the
+one door nobody opened, and whether the room had the exculpatory clue in its
+notebook when it named someone. See
 [`docs/stranded-scenario-map.md`](docs/stranded-scenario-map.md) for the full
 scenario map: the truth, the suspects, every clue and where it is found, and the
 complete ending table.
 
-Stranded adds two things The Pilot does not use:
+Stranded adds three things The Pilot does not use:
 
 - **Clues.** A notebook the group accumulates. Choices can require them.
 - **Run variables.** Single-valued state such as `accused`, read by endings.
+- **Skill tests.** Eight moments where the spotlight player has to *do*
+  something: hold a hand steady, remember a code, scan a page, put a night back
+  in order.
 
 The important rule: **clue gates hide, Star gates lock.** A Star gate is shown
 with its price, because money you can see you lack. A clue gate is not shown at
 all, because rendering it greyed out would tell players that evidence they have
 not found exists.
+
+Skill tests follow their own rules: a choice carries a cost *or* a test and never
+both, tests are spotlight-only, and failing one costs you the prize rather than
+the run — `failEffects` and `failNext` default to "nothing happened, carry on".
+Mishaps raise test difficulty the same way they raise gate prices, clamped so a
+pile of setbacks can never make a puzzle unwinnable.
 
 ## Decisions already made
 

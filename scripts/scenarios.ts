@@ -29,8 +29,10 @@ import type { GameState, Story } from "@/engine/types";
 const EXHAUSTIVE_CAP = 300_000;
 const SAMPLES = 60_000;
 
-const [storyId = "the-pilot", playerCountArg = "4"] = process.argv.slice(2);
+const [storyId = "the-pilot", playerCountArg = "4", passRateArg = "0.7"] = process.argv.slice(2);
 const playerCount = Number(playerCountArg);
+/** How often the simulated player passes a skill test. */
+const passRate = Number(passRateArg);
 
 const raw = await import(`@/stories/${storyId}.json`);
 const story: Story = validateStory(raw.default);
@@ -57,7 +59,9 @@ const finished: GameState[] = exhaustive
   ? enumerateRuns(story, players, Number.POSITIVE_INFINITY, onScene)
   : (() => {
       const rand = mulberry32(20260916);
-      return Array.from({ length: SAMPLES }, () => sampleRun(story, players, rand, onScene));
+      return Array.from({ length: SAMPLES }, () =>
+        sampleRun(story, players, rand, onScene, passRate),
+      );
     })();
 
 const runs = finished.length;
@@ -79,7 +83,11 @@ const stat = (xs: number[]) =>
   `min ${Math.min(...xs)}, avg ${(xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1)}, max ${Math.max(...xs)}`;
 const bar = (n: number) => "█".repeat(Math.round((n / runs) * 40)).padEnd(40, "·");
 
+const attempts = Object.values(story.scenes).flatMap((sc) => sc.choices.filter((c) => c.minigame));
 console.log(`\n${story.title} — ${playerCount} players`);
+if (attempts.length > 0) {
+  console.log(`${attempts.length} skill tests, simulated at a ${(passRate * 100).toFixed(0)}% pass rate`);
+}
 console.log(
   exhaustive
     ? `${runs.toLocaleString()} distinct paths, walked exhaustively\n`

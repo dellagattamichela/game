@@ -12,12 +12,17 @@
     "captain_notebook": {
       "id": "captain_notebook",
       "title": "The captain's notebook",
-      "description": "On the console, with several pages torn out."
+      "description": "On the console, with four pages torn out."
     },
     "brann_promotion": {
       "id": "brann_promotion",
       "title": "Brann's promotion papers",
       "description": "Filed the day before the captain vanished."
+    },
+    "radio_log": {
+      "id": "radio_log",
+      "title": "The cancelled distress call",
+      "description": "Started at 02:48. Cancelled ninety seconds later, from the bridge."
     },
     "cold_store_empty": {
       "id": "cold_store_empty",
@@ -27,12 +32,12 @@
     "key_missing": {
       "id": "key_missing",
       "title": "The cold store key is gone",
-      "description": "Missing from the board in the galley."
+      "description": "Missing from the board by the galley door."
     },
     "hal_saw_light": {
       "id": "hal_saw_light",
       "title": "A light at three in the morning",
-      "description": "Hal saw the cold store lit from the engine room walkway."
+      "description": "Hal saw the cold store lit from the engine walkway."
     },
     "manifest_gap": {
       "id": "manifest_gap",
@@ -42,32 +47,72 @@
     "doctor_prescription": {
       "id": "doctor_prescription",
       "title": "The captain's prescription",
-      "description": "Something that made him vague in the evenings."
+      "description": "Something that made him vague after dark."
     },
     "scuffed_deck": {
       "id": "scuffed_deck",
       "title": "Drag marks on the deck",
       "description": "Fresh, and heading aft toward the galley."
     },
+    "galley_boots": {
+      "id": "galley_boots",
+      "title": "Wet boots in the galley locker",
+      "description": "Salt-stained, still damp at nine in the morning."
+    },
+    "teddy_phone": {
+      "id": "teddy_phone",
+      "title": "Teddy's phone",
+      "description": "Nine days of footage and no intention of sharing it."
+    },
     "teddy_footage": {
       "id": "teddy_footage",
-      "title": "Teddy's corridor footage",
-      "description": "Two in the morning. Two people, one of them unwilling."
+      "title": "The corridor at 02:41",
+      "description": "Two people. One of them is not walking on their own."
+    },
+    "torn_page": {
+      "id": "torn_page",
+      "title": "The torn page",
+      "description": "From the galley bin. Her name on it twice, underlined once."
+    },
+    "smuggling_crate": {
+      "id": "smuggling_crate",
+      "title": "The crate with a false bottom",
+      "description": "Labelled langoustines. Langoustines in the top four inches only."
     },
     "marisol_alibi_broken": {
       "id": "marisol_alibi_broken",
       "title": "The ovens ran all night",
       "description": "She said she slept. Only she has the code."
     },
-    "torn_page": {
-      "id": "torn_page",
-      "title": "The torn page",
-      "description": "In the galley bin. It has her name on it twice."
+    "okonjo_statement": {
+      "id": "okonjo_statement",
+      "title": "What the doctor actually said",
+      "description": "She was keeping a patient's confidence, and can prove where she was."
     },
-    "smuggling_crate": {
-      "id": "smuggling_crate",
-      "title": "The crate with a false bottom",
-      "description": "Labelled langoustines. Not langoustines."
+    "brann_alibi": {
+      "id": "brann_alibi",
+      "title": "Brann's watch log",
+      "description": "He was on the bridge from midnight. The log is countersigned."
+    },
+    "captain_ledger": {
+      "id": "captain_ledger",
+      "title": "The captain's ledger",
+      "description": "He had been counting crates against the manifest for eleven weeks."
+    },
+    "cabin_note": {
+      "id": "cabin_note",
+      "title": "A note in his cabin",
+      "description": "\"Ask M about the Cadiz delivery. Do it quietly.\""
+    },
+    "timeline": {
+      "id": "timeline",
+      "title": "The night, reconstructed",
+      "description": "Dinner, the galley, the drag marks, the light, the cancelled call."
+    },
+    "marisol_admission": {
+      "id": "marisol_admission",
+      "title": "What she said when it was laid out",
+      "description": "\"He wasn't supposed to open it.\""
     }
   },
   "vars": {
@@ -98,7 +143,15 @@
     "teddy_offended": {
       "id": "teddy_offended",
       "title": "Teddy is filming you now",
-      "description": "He has found an angle, and it is you."
+      "description": "He has found an angle, and it is you.",
+      "minigameDifficultyDelta": 1
+    },
+    "blackout": {
+      "id": "blackout",
+      "title": "Below decks is dark",
+      "description": "Everything down there is done by torchlight now.",
+      "minigameDifficultyDelta": 1,
+      "crisisCostDelta": 1
     }
   },
   "scenes": {
@@ -112,7 +165,7 @@
           "effects": {
             "stars": 2
           },
-          "result": "Six decks up, and every one of them quiet in a way a ship should never be.",
+          "result": "Six decks up, every one of them quiet in a way a ship should never be.",
           "next": "s2"
         },
         {
@@ -120,7 +173,7 @@
           "effects": {
             "stars": 1
           },
-          "result": "The breakfast service has not been laid. The serving trays are stacked and cold.",
+          "result": "The breakfast service has not been laid. The trays are stacked and cold.",
           "next": "s2"
         },
         {
@@ -136,14 +189,14 @@
     "s2": {
       "mode": "group",
       "background": "muster_deck",
-      "text": "Forty passengers on the muster deck and no officer in sight. Someone is going to have to say something, and everyone has decided it will be someone else.",
+      "text": "Forty passengers on the muster deck and no officer in sight. Somebody is going to have to say something, and everyone has decided it will be someone else.",
       "choices": [
         {
           "label": "Let the loudest person talk",
           "effects": {
             "stars": 1
           },
-          "result": "He is wrong about most of it, but he is loud about it, and the deck calms down.",
+          "result": "He is wrong about most of it, but he is loud about it, and the deck settles.",
           "next": "s3"
         },
         {
@@ -164,7 +217,7 @@
     "s3": {
       "mode": "spotlight",
       "background": "bridge",
-      "text": "The bridge is empty and unlocked, which is itself a thing that should not happen. The captain's chair is cold. His notebook is open on the console with several pages torn out of it.",
+      "text": "The bridge is empty and unlocked, which is itself a thing that should not happen. The captain's chair is cold. His notebook is open on the console with four pages torn out of it.",
       "choices": [
         {
           "label": "Pocket the notebook",
@@ -197,7 +250,7 @@
     "s4": {
       "mode": "spotlight",
       "background": "bridge",
-      "text": "First Officer Brann arrives already wearing the hat. He assumes command in one smooth sentence, the way a person does when they have said it to a mirror.",
+      "text": "First Officer Brann arrives already wearing the hat. He assumes command in one smooth sentence, the way a person does who has said it to a mirror.",
       "choices": [
         {
           "label": "Search his desk while he talks",
@@ -212,7 +265,7 @@
           "effects": {
             "stars": 2
           },
-          "result": "\"At the dinner. He left early. He does that.\" It is a good answer, delivered slightly too fast.",
+          "result": "\"At the dinner. He left early. He does that.\" A good answer, delivered slightly too fast.",
           "next": "s5"
         },
         {
@@ -226,22 +279,61 @@
       ]
     },
     "s5": {
+      "mode": "spotlight",
+      "background": "radio_room",
+      "text": "The radio room is unlocked too. The set is warm. There is a call log on it, and the log wants the watch code before it will give up last night.",
+      "choices": [
+        {
+          "label": "Work the code out from the watch board",
+          "minigame": {
+            "type": "memory",
+            "difficulty": 2,
+            "prompt": "The watch code is on the board for a few seconds only."
+          },
+          "effects": {
+            "addClue": "radio_log",
+            "stars": 1
+          },
+          "result": "02:48 — a distress call opened. 02:49 and thirty seconds — the same call cancelled, from the bridge, by somebody who knew how.",
+          "next": "s6",
+          "failNext": "s6",
+          "failResult": "{spotlight} puts in three wrong codes and the set locks itself for an hour."
+        },
+        {
+          "label": "Ask Hal to do it later",
+          "effects": {
+            "stars": 1
+          },
+          "result": "He says he will. He has nineteen other things to do first.",
+          "next": "s6"
+        },
+        {
+          "label": "Leave the radio alone",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Whatever is on it will still be on it for the coastguard.",
+          "next": "s6"
+        }
+      ]
+    },
+    "s6": {
       "mode": "group",
       "background": "muster_deck",
-      "text": "Brann wants the passengers told that this is an engine fault. It is not, strictly speaking, a lie. It is just not the part that matters.",
+      "text": "Brann wants the passengers told this is an engine fault. It is not, strictly speaking, a lie. It is just not the part that matters.",
       "choices": [
         {
           "label": "Back him. A calm ship is a searchable ship.",
           "effects": {
             "stars": 1
           },
-          "result": "The deck settles. Brann gives {spotlight} a small nod that feels like being recruited.",
-          "next": "s6"
+          "result": "The deck settles. Brann gives {spotlight} a nod that feels like being recruited.",
+          "next": "s7"
         },
         {
           "label": "Tell them the truth",
-          "result": "It goes worse than expected for about four minutes, and then much better than expected.",
-          "next": "s6"
+          "result": "It goes worse than expected for four minutes and much better than expected after that.",
+          "next": "s7"
         },
         {
           "label": "Tell them nothing and go below",
@@ -249,11 +341,34 @@
             "stars": 1
           },
           "result": "Nobody stops you. Nobody follows you either.",
-          "next": "s6"
+          "next": "s7"
         }
       ]
     },
-    "s6": {
+    "s7": {
+      "mode": "spotlight",
+      "background": "muster_deck",
+      "text": "Somebody does a head count, because somebody always does. Forty passengers, eleven crew, and one captain unaccounted for. Nobody else is missing, which is worse. It means he did not go over the side with company.",
+      "choices": [
+        {
+          "label": "Write the list out properly",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Names, cabins, last seen. It will matter later.",
+          "next": "s8"
+        },
+        {
+          "label": "Go below while everyone is counting",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Nobody is watching the stairwell for the next ten minutes.",
+          "next": "s8"
+        }
+      ]
+    },
+    "s8": {
       "mode": "spotlight",
       "background": "corridor",
       "text": "Three doors, and not enough morning left for all of them. {spotlight} picks.",
@@ -266,8 +381,8 @@
               "key_missing"
             ]
           },
-          "result": "The galley is spotless, which is the problem. The cold store has not been raided, it has been emptied, and the key is gone from the board by the door.",
-          "next": "s7"
+          "result": "Spotless, which is the problem. The cold store has not been raided, it has been emptied, and the key is gone from the board by the door.",
+          "next": "s9"
         },
         {
           "label": "The engine room",
@@ -277,8 +392,8 @@
               "manifest_gap"
             ]
           },
-          "result": "Hal is sixteen hours into a shift and mentions, without being asked, that the cold store light was on at three. The cargo manifest has forty minutes missing out of the middle of it.",
-          "next": "s7"
+          "result": "Hal is sixteen hours into a shift and mentions, unasked, that the cold store light was on at three. The cargo manifest has forty minutes missing out of the middle of it.",
+          "next": "s9"
         },
         {
           "label": "The sick bay",
@@ -288,12 +403,12 @@
               "scuffed_deck"
             ]
           },
-          "result": "Dr. Okonjo is not there, but her log is: the captain was on something that made him vague after dark. On the way out, drag marks on the deck plating, heading aft.",
-          "next": "s7"
+          "result": "Dr. Okonjo is not there but her log is: the captain was on something that made him vague after dark. On the way out, drag marks on the deck plating, heading aft.",
+          "next": "s9"
         }
       ]
     },
-    "s7": {
+    "s9": {
       "mode": "spotlight",
       "background": "corridor",
       "text": "The lights dip, hold, and come back. Whatever is keeping this ship lit is running on something with a bottom to it. {randomPlayer} starts counting hours out loud and then decides not to.",
@@ -304,19 +419,19 @@
             "stars": 1
           },
           "result": "No time to be tired yet.",
-          "next": "s8"
+          "next": "s10"
         },
         {
           "label": "Take five minutes and compare notes",
           "effects": {
             "stars": 1
           },
-          "result": "Everything anyone has seen, out loud, in one place. It is the most useful five minutes of the morning.",
-          "next": "s8"
+          "result": "Everything anyone has seen, out loud, in one place. The most useful five minutes of the morning.",
+          "next": "s10"
         }
       ]
     },
-    "s8": {
+    "s10": {
       "mode": "spotlight",
       "background": "corridor",
       "text": "One more room, before Brann works out quite how much of his ship you have been inside.",
@@ -332,8 +447,8 @@
               "key_missing"
             ]
           },
-          "result": "Spotless. The cold store emptied rather than raided, and the key gone from the board.",
-          "next": "s9"
+          "result": "Spotless, which is the problem. The cold store has not been raided, it has been emptied, and the key is gone from the board by the door.",
+          "next": "s11"
         },
         {
           "label": "The engine room",
@@ -346,8 +461,8 @@
               "manifest_gap"
             ]
           },
-          "result": "Hal, still on shift, still talking: the cold store light was on at three. The manifest is missing forty minutes.",
-          "next": "s9"
+          "result": "Hal is sixteen hours into a shift and mentions, unasked, that the cold store light was on at three. The cargo manifest has forty minutes missing out of the middle of it.",
+          "next": "s11"
         },
         {
           "label": "The sick bay",
@@ -360,16 +475,16 @@
               "scuffed_deck"
             ]
           },
-          "result": "The doctor's log says the captain was medicated and vague at night. There are drag marks outside, heading aft.",
-          "next": "s9"
+          "result": "Dr. Okonjo is not there but her log is: the captain was on something that made him vague after dark. On the way out, drag marks on the deck plating, heading aft.",
+          "next": "s11"
         }
       ]
     },
-    "s9": {
+    "s11": {
       "type": "crisis",
       "mode": "spotlight",
       "background": "corridor",
-      "text": "Brann has worked out that you have been searching his ship. He is confining everyone to their cabins until, in his words, the situation is stable.",
+      "text": "Brann has worked out how much of his ship you have been inside. He is confining everyone to cabins until, in his words, the situation is stable.",
       "choices": [
         {
           "label": "Comply",
@@ -378,17 +493,17 @@
             "addMishap": "confined"
           },
           "result": "Two hours behind a door you cannot open from the inside. Whatever was going to be found in that time is not found.",
-          "next": "s11"
+          "next": "s13"
         },
         {
           "label": "Talk him down",
           "cost": 2,
-          "result": "{spotlight} gives him a reason that is almost true, and he takes it because he wants to.",
-          "next": "s10"
+          "result": "{spotlight} gives him a reason that is almost true, and he takes it because he would like to.",
+          "next": "s12"
         },
         {
           "label": "Point out that he filed his promotion yesterday",
-          "cost": 5,
+          "cost": 6,
           "requires": {
             "hasClue": "brann_promotion"
           },
@@ -396,11 +511,11 @@
             "starsAll": 1
           },
           "result": "He goes very still. \"That is filed in advance as a matter of routine.\" It is, in fact, filed in advance as a matter of routine, and he is now far too busy proving it to confine anybody.",
-          "next": "s10"
+          "next": "s12"
         }
       ]
     },
-    "s10": {
+    "s12": {
       "mode": "spotlight",
       "background": "corridor",
       "text": "Twenty minutes, at the outside, before somebody comes looking. One room left.",
@@ -416,8 +531,8 @@
               "key_missing"
             ]
           },
-          "result": "Emptied, not raided. And the key is gone.",
-          "next": "s11"
+          "result": "Spotless, which is the problem. The cold store has not been raided, it has been emptied, and the key is gone from the board by the door.",
+          "next": "s13"
         },
         {
           "label": "The engine room",
@@ -430,8 +545,8 @@
               "manifest_gap"
             ]
           },
-          "result": "Hal saw the cold store light on at three. Forty minutes missing from the manifest.",
-          "next": "s11"
+          "result": "Hal is sixteen hours into a shift and mentions, unasked, that the cold store light was on at three. The cargo manifest has forty minutes missing out of the middle of it.",
+          "next": "s13"
         },
         {
           "label": "The sick bay",
@@ -444,24 +559,109 @@
               "scuffed_deck"
             ]
           },
-          "result": "Medicated, and vague after dark. Drag marks outside, heading aft.",
-          "next": "s11"
+          "result": "Dr. Okonjo is not there but her log is: the captain was on something that made him vague after dark. On the way out, drag marks on the deck plating, heading aft.",
+          "next": "s13"
         },
         {
           "label": "Don't risk it",
           "effects": {
             "stars": 2
           },
-          "result": "You are back on the passenger deck before anyone counts heads. It is the sensible call and it costs you the room.",
-          "next": "s11"
+          "result": "You are back on the passenger deck before anyone counts heads. The sensible call, and it costs you the room.",
+          "next": "s13"
         }
       ]
     },
-    "s11": {
+    "s13": {
+      "mode": "spotlight",
+      "background": "galley",
+      "text": "There is a bin in the galley that nobody has emptied since yesterday, and four pages somewhere on this ship that used to be in a notebook.",
+      "choices": [
+        {
+          "label": "Go through it, page by page",
+          "requires": {
+            "hasClue": "captain_notebook"
+          },
+          "minigame": {
+            "type": "search",
+            "difficulty": 3,
+            "prompt": "Paper among peelings. Find the four that are not rubbish."
+          },
+          "effects": {
+            "addClue": "torn_page",
+            "stars": 1
+          },
+          "result": "Four pages, folded small, under the peelings. Her name is on the second one twice, and the second time it is underlined.",
+          "next": "s14",
+          "failNext": "s14",
+          "failResult": "Forty minutes, both arms to the elbow, and nothing but yesterday's vegetables."
+        },
+        {
+          "label": "Check the galley locker",
+          "effects": {
+            "addClue": "galley_boots",
+            "stars": 1
+          },
+          "result": "Boots, salt-stained, still damp at nine in the morning. Nobody has been on deck in the wet since the dinner.",
+          "next": "s14"
+        },
+        {
+          "label": "Leave the bin. It isn't ours to go through.",
+          "effects": {
+            "stars": 1
+          },
+          "result": "{spotlight} closes the lid on it. The decent thing, and the decent thing is not always the useful one.",
+          "next": "s14"
+        }
+      ]
+    },
+    "s14": {
+      "mode": "spotlight",
+      "background": "galley",
+      "text": "There is a crate by the cold store door that nobody has opened, and a label on it that says langoustines.",
+      "choices": [
+        {
+          "label": "Prise the lid without splitting it",
+          "requires": {
+            "hasClue": "manifest_gap"
+          },
+          "minigame": {
+            "type": "timing",
+            "difficulty": 3,
+            "prompt": "Get the bar under the lip. One clean pull."
+          },
+          "effects": {
+            "addClue": "smuggling_crate",
+            "stars": 1
+          },
+          "result": "Langoustines in the top four inches. Under that, a false floor and a space exactly the size of forty missing minutes.",
+          "next": "s15",
+          "failNext": "s15",
+          "failResult": "The lid splits down the middle and the whole thing has to be left exactly as it is, which is now obviously interfered with."
+        },
+        {
+          "label": "Photograph the label and the seal",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Forty pictures of a crate. Some of them will matter later.",
+          "next": "s15"
+        },
+        {
+          "label": "Ask Marisol what is in it",
+          "effects": {
+            "stars": 1
+          },
+          "result": "\"Langoustines,\" she says, and does not look at it while she says it.",
+          "next": "s15"
+        }
+      ]
+    },
+    "s15": {
       "type": "crisis",
       "mode": "spotlight",
       "background": "teddy_cabin",
-      "text": "Teddy Vance has filmed every hour of this cruise and offered to help with none of it. His phone has the corridor outside the galley at two in the morning on it. He would like something in return.",
+      "text": "Teddy Vance has filmed every hour of this cruise and offered to help with none of it. There is footage on his phone of the corridor outside the galley at two in the morning. He would like something in return.",
       "choices": [
         {
           "label": "Leave it. He's a child.",
@@ -470,30 +670,64 @@
             "addMishap": "teddy_offended"
           },
           "result": "He shrugs and goes back to filming. Within ten minutes he is filming you, from a low angle, at length.",
-          "next": "s12"
+          "next": "s17"
         },
         {
           "label": "Pay his price",
           "cost": 2,
           "effects": {
-            "addClue": "teddy_footage"
+            "addClue": "teddy_phone"
           },
-          "result": "Two in the morning. Two people in the corridor. One of them is not walking on their own.",
-          "next": "s12"
+          "result": "He hands the phone over with nine days of footage on it and no index whatsoever.",
+          "next": "s16"
         },
         {
           "label": "Put him in the story",
-          "cost": 4,
+          "cost": 3,
           "effects": {
-            "addClue": "teddy_footage",
+            "addClue": "teddy_phone",
             "starsAll": 1
           },
-          "result": "{spotlight} tells him he can be the one who found the footage. He hands over the phone so fast he nearly drops it, and then he is useful for the rest of the morning.",
-          "next": "s12"
+          "result": "{spotlight} tells him he can be the one who found it. He hands the phone over so fast he nearly drops it, and is useful for the rest of the morning.",
+          "next": "s16"
         }
       ]
     },
-    "s12": {
+    "s16": {
+      "mode": "spotlight",
+      "background": "teddy_cabin",
+      "text": "Nine days of footage, no index, and a battery bar that is not going to last the morning. Somewhere in it is the corridor, at two.",
+      "choices": [
+        {
+          "label": "Scrub through it properly",
+          "requires": {
+            "hasClue": "teddy_phone"
+          },
+          "minigame": {
+            "type": "order",
+            "difficulty": 2,
+            "prompt": "Put the clips in order and the corridor falls out of the middle."
+          },
+          "effects": {
+            "addClue": "teddy_footage",
+            "stars": 1
+          },
+          "result": "02:41. The corridor outside the galley. Two people, and one of them is not walking on their own.",
+          "next": "s17",
+          "failNext": "s17",
+          "failResult": "The battery goes at eleven percent and the phone will not come back on."
+        },
+        {
+          "label": "Hand it to {randomPlayer} and go do something useful",
+          "effects": {
+            "stars": 1
+          },
+          "result": "{randomPlayer} watches four hours of a man narrating a buffet and finds nothing.",
+          "next": "s17"
+        }
+      ]
+    },
+    "s17": {
       "mode": "group",
       "background": "muster_deck",
       "text": "Somebody says a name out loud for the first time. Everyone hears the room change shape around it.",
@@ -504,7 +738,7 @@
             "stars": 1
           },
           "result": "It lands. Half the deck already thought it and is glad not to have said it first.",
-          "next": "s13"
+          "next": "s18"
         },
         {
           "label": "Say Marisol's name",
@@ -512,16 +746,16 @@
             "stars": 1
           },
           "result": "It lands badly. She has fed these people for nine days.",
-          "next": "s13"
+          "next": "s18"
         },
         {
           "label": "Refuse to name anyone yet",
           "result": "{spotlight} says it is too early, and is right, and is deeply unpopular for about an hour.",
-          "next": "s13"
+          "next": "s18"
         }
       ]
     },
-    "s13": {
+    "s18": {
       "mode": "spotlight",
       "background": "galley",
       "text": "Marisol Reyes is in her galley with nothing to cook and nothing to do about it. She says she slept through the whole thing.",
@@ -539,94 +773,380 @@
             "stars": 1
           },
           "result": "She says she was asleep. The ovens ran all night and only she has the code. She corrects herself twice, and the second correction is worse than the first.",
-          "next": "s14"
+          "next": "s19"
         },
         {
           "label": "Ask about the captain's last dinner",
           "effects": {
             "stars": 1
           },
-          "result": "\"He came down to the galley after. He does that. He likes to see the crates.\" She hears herself say it.",
-          "next": "s14"
+          "result": "\"He came down after. He does that. He likes to see the crates.\" She hears herself say it.",
+          "next": "s19"
         },
         {
           "label": "Say nothing and watch her hands",
-          "result": "She wipes down a surface that is already clean, three times, while {spotlight} says absolutely nothing.",
-          "next": "s14"
-        }
-      ]
-    },
-    "s14": {
-      "mode": "spotlight",
-      "background": "galley",
-      "text": "There is a bin nobody has emptied, and a crate nobody has opened.",
-      "choices": [
-        {
-          "label": "Go through the bin for the torn pages",
-          "requires": {
-            "hasClue": "captain_notebook"
-          },
-          "effects": {
-            "addClue": "torn_page"
-          },
-          "result": "Four pages, folded small, under the peelings. Her name is on the second one twice, and the second time it is underlined.",
-          "next": "s15"
-        },
-        {
-          "label": "Open the crate",
-          "requires": {
-            "hasClue": "manifest_gap"
-          },
-          "effects": {
-            "addClue": "smuggling_crate"
-          },
-          "result": "Langoustines on the label. Langoustines in the top four inches. Under that, a false floor and a space the right size for the forty missing minutes.",
-          "next": "s15"
-        },
-        {
-          "label": "Leave it. It isn't ours to search.",
-          "result": "{spotlight} closes the door on it. It is the decent thing, and the decent thing is not always the useful one.",
-          "next": "s15"
-        },
-        {
-          "label": "Photograph everything and move on",
           "effects": {
             "stars": 1
           },
-          "result": "Forty pictures of a galley. Some of them will matter later. None of them matter now.",
-          "next": "s15"
+          "result": "She wipes down a surface that is already clean, three times, while {spotlight} says nothing at all.",
+          "next": "s19"
         }
       ]
     },
-    "s15": {
+    "s19": {
+      "mode": "spotlight",
+      "background": "muster_deck",
+      "text": "Dr. Okonjo has been on the muster deck all morning, dressing a sprained wrist and saying nothing whatsoever about the captain.",
+      "choices": [
+        {
+          "label": "Ask her properly, and privately",
+          "requires": {
+            "hasClue": "doctor_prescription"
+          },
+          "effects": {
+            "addClue": "okonjo_statement",
+            "stars": 1
+          },
+          "result": "She was with a patient from one until four and there are two people who can say so. The prescription was for a heart condition he did not want logged. She is not hiding a crime, she is hiding a man's medical record.",
+          "next": "s20"
+        },
+        {
+          "label": "Ask her in front of everyone",
+          "effects": {
+            "stars": 1
+          },
+          "result": "\"I'm not going to discuss a patient on a deck.\" It is the correct answer and it sounds terrible.",
+          "next": "s20"
+        },
+        {
+          "label": "Leave her to her wrist",
+          "effects": {
+            "stars": 1
+          },
+          "result": "She is the only person on this ship doing her actual job.",
+          "next": "s20"
+        }
+      ]
+    },
+    "s20": {
+      "mode": "spotlight",
+      "background": "bridge",
+      "text": "The watch log lives on the bridge, and Brann has been standing in front of it all morning without once mentioning that it exists.",
+      "choices": [
+        {
+          "label": "Ask him for the watch log",
+          "requires": {
+            "hasClue": "radio_log"
+          },
+          "effects": {
+            "addClue": "brann_alibi",
+            "stars": 1
+          },
+          "result": "He hands it over immediately, which is itself an answer. Midnight to six, on the bridge, countersigned by the helmsman at two and at four. He was never below decks. He cancelled the distress call because the captain had already cancelled it, and he wrote that down too.",
+          "next": "s21"
+        },
+        {
+          "label": "Take it when he isn't looking",
+          "effects": {
+            "stars": 1
+          },
+          "result": "{spotlight} gets three pages in before he comes back, and puts it down very casually.",
+          "next": "s21"
+        },
+        {
+          "label": "Ask Hal what Brann was doing",
+          "effects": {
+            "stars": 1
+          },
+          "result": "\"On the bridge. All night. He's always on the bridge.\" Hal says it like it is the least interesting fact on the ship.",
+          "next": "s21"
+        }
+      ]
+    },
+    "s21": {
+      "mode": "spotlight",
+      "background": "engine_room",
+      "text": "Hal has now been awake for nineteen hours and is the only reason there is any light on this deck at all. He answers everything, at length, without being asked twice.",
+      "choices": [
+        {
+          "label": "Ask him about the light again",
+          "effects": {
+            "stars": 2
+          },
+          "result": "Three in the morning, cold store, lit. He is certain, because he noted the time, because he notes everything.",
+          "next": "s22"
+        },
+        {
+          "label": "Ask him to get some sleep",
+          "effects": {
+            "stars": 1
+          },
+          "result": "He says he will after the generators. He will not.",
+          "next": "s22"
+        },
+        {
+          "label": "Ask what he thinks happened",
+          "effects": {
+            "stars": 1
+          },
+          "result": "\"I think somebody's done something stupid and it's got away from them.\" He goes back down the ladder.",
+          "next": "s22"
+        }
+      ]
+    },
+    "s22": {
+      "mode": "spotlight",
+      "background": "bridge",
+      "text": "There is a safe on the bridge, and the captain's notebook has a four-figure number written inside the back cover with a line through it.",
+      "choices": [
+        {
+          "label": "Try the number with a line through it",
+          "requires": {
+            "hasClue": "captain_notebook"
+          },
+          "minigame": {
+            "type": "memory",
+            "difficulty": 4,
+            "prompt": "Four figures, and the safe gives you one look at the dial."
+          },
+          "effects": {
+            "addClue": "captain_ledger",
+            "stars": 1
+          },
+          "result": "A ledger. Eleven weeks of crate counts, written up against the manifest in his own hand, with eleven weeks of small discrepancies circled.",
+          "next": "s23",
+          "failNext": "s23",
+          "failResult": "Three wrong attempts and the safe locks out for six hours, which is longer than this ship has light for."
+        },
+        {
+          "label": "Ask Brann to open it",
+          "effects": {
+            "stars": 1
+          },
+          "result": "\"I don't have the captain's combination.\" He seems genuinely irritated about it.",
+          "next": "s23"
+        },
+        {
+          "label": "Leave the safe for the coastguard",
+          "effects": {
+            "stars": 1
+          },
+          "result": "It will still be there. So will everything in it.",
+          "next": "s23"
+        }
+      ]
+    },
+    "s23": {
       "mode": "group",
       "background": "muster_deck",
-      "text": "The generators have about an hour left in them. After that there is no light below decks at all, and nothing below decks gets looked at again.",
+      "text": "The passengers have worked out that this is not an engine fault. Forty people want to know what is being done, and the honest answer is: four of you, going through bins.",
       "choices": [
         {
-          "label": "Find the captain. Everything else can wait.",
-          "result": "The room agrees so fast that it is clear everyone has been thinking it.",
-          "next": "s16"
+          "label": "Tell them everything you have",
+          "result": "It is thinner out loud than it felt in your head.",
+          "next": "s24"
         },
         {
-          "label": "Get the proof first, while there is light to see it by",
-          "result": "Cold, and correct, and nobody quite looks at anybody while they vote for it.",
-          "next": "s16"
+          "label": "Tell them the captain is being looked for",
+          "effects": {
+            "stars": 1
+          },
+          "result": "True, and useless, and it buys an hour.",
+          "next": "s24"
         },
         {
-          "label": "Get everyone into the lifeboats",
-          "result": "Forty people in orange, on a flat sea, in no danger at all, watching the ship.",
-          "next": "s16"
+          "label": "Ask them what they saw last night",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Nine people saw nothing. One woman saw a man carrying a crate at about two and assumed it was crew.",
+          "next": "s24"
         }
       ]
     },
-    "s16": {
+    "s24": {
       "mode": "spotlight",
-      "background": "cold_store",
-      "text": "Every room on this ship has been opened this morning except one.",
+      "background": "captain_cabin",
+      "text": "The captain's cabin is two doors down from the bridge and has not been slept in. The bed is made. The uniform for this morning is laid out on it.",
       "choices": [
         {
-          "label": "Open the cold store",
+          "label": "Go through the cabin properly",
+          "minigame": {
+            "type": "search",
+            "difficulty": 2,
+            "prompt": "A tidy room. Find the four things that are not where they should be."
+          },
+          "effects": {
+            "addClue": "cabin_note",
+            "stars": 1
+          },
+          "result": "A note on the desk, in his handwriting, under a paperweight: \"Ask M about the Cadiz delivery. Do it quietly.\"",
+          "next": "s25",
+          "failNext": "s25",
+          "failResult": "Forty minutes in a very tidy cabin, and the only thing anyone finds is that he folded his socks."
+        },
+        {
+          "label": "Check whether the uniform is for today",
+          "effects": {
+            "stars": 1
+          },
+          "result": "It is. Whatever happened, he expected to be wearing it.",
+          "next": "s25"
+        },
+        {
+          "label": "Close the door and leave it for the coastguard",
+          "effects": {
+            "stars": 1
+          },
+          "result": "It is a man's cabin and he may still walk into it.",
+          "next": "s25"
+        }
+      ]
+    },
+    "s25": {
+      "mode": "spotlight",
+      "background": "dining_room",
+      "text": "Everything anyone has found, laid out on a dining table, in no order at all. {spotlight} starts moving things around.",
+      "choices": [
+        {
+          "label": "Put the night in order",
+          "requires": {
+            "minClues": 6
+          },
+          "minigame": {
+            "type": "order",
+            "difficulty": 3,
+            "prompt": "Earliest first. The night only fits together one way."
+          },
+          "effects": {
+            "addClue": "timeline",
+            "stars": 2
+          },
+          "result": "Dinner ends at midnight. The galley at two. The corridor at 02:41. The distress call at 02:48, cancelled at 02:49. The cold store lit at three. It is one story and it only goes one way.",
+          "next": "s26",
+          "failNext": "s26",
+          "failResult": "Three attempts, three different nights, and everybody starts arguing about the second one."
+        },
+        {
+          "label": "Sort it by who it points at",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Four piles. One of them is much bigger than the others and nobody says so out loud.",
+          "next": "s26"
+        },
+        {
+          "label": "Give up and go back to searching",
+          "effects": {
+            "stars": 1
+          },
+          "result": "There is more ship left than there is morning.",
+          "next": "s26"
+        }
+      ]
+    },
+    "s26": {
+      "mode": "group",
+      "background": "dining_room",
+      "text": "It is on the table and everyone can see it. The question is what the room does about it.",
+      "choices": [
+        {
+          "label": "Go straight to her with it",
+          "effects": {
+            "stars": 1
+          },
+          "result": "No argument, no vote. {spotlight} picks up the pages and goes aft.",
+          "next": "s27"
+        },
+        {
+          "label": "Go and find him first",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Whatever she did, he has been somewhere on this ship for nine hours.",
+          "next": "s27"
+        },
+        {
+          "label": "Tell Brann what you have",
+          "result": "He listens properly, for the first time all morning, and writes it down.",
+          "next": "s27"
+        }
+      ]
+    },
+    "s27": {
+      "type": "crisis",
+      "mode": "spotlight",
+      "background": "corridor",
+      "text": "The generators go at twenty past five, ninety minutes earlier than Hal said they would. Below decks is now completely dark.",
+      "choices": [
+        {
+          "label": "Carry on in the dark",
+          "cost": 0,
+          "effects": {
+            "addMishap": "blackout"
+          },
+          "result": "Torches, and one of them is a phone.",
+          "next": "s28"
+        },
+        {
+          "label": "Get Hal to bring one generator back",
+          "cost": 3,
+          "result": "Forty minutes of his life and one deck of lighting.",
+          "next": "s28"
+        },
+        {
+          "label": "Get every torch on the ship into one place first",
+          "cost": 5,
+          "effects": {
+            "starsAll": 1
+          },
+          "result": "{spotlight} organises it in eight minutes flat and the whole thing goes better for it.",
+          "next": "s28"
+        }
+      ]
+    },
+    "s28": {
+      "mode": "spotlight",
+      "background": "galley",
+      "text": "Marisol is sitting in the dark in her own galley with the pages in front of her, and she has stopped saying she was asleep.",
+      "choices": [
+        {
+          "label": "Lay the whole night out for her",
+          "requires": {
+            "hasClue": "timeline"
+          },
+          "effects": {
+            "addClue": "marisol_admission",
+            "stars": 1
+          },
+          "result": "She listens to all of it. Then: \"He wasn't supposed to open it.\" It is not a confession and it is not anything else either.",
+          "next": "s29"
+        },
+        {
+          "label": "Ask her one question and wait",
+          "effects": {
+            "stars": 1
+          },
+          "result": "{spotlight} asks where he is. She does not answer for a very long time, and then says she wants to talk to the coastguard.",
+          "next": "s29"
+        },
+        {
+          "label": "Leave her alone with it",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Whatever she is going to say, she is not going to say it to you.",
+          "next": "s29"
+        }
+      ]
+    },
+    "s29": {
+      "mode": "spotlight",
+      "background": "cold_store",
+      "text": "Every room on this ship has been opened this morning except one, and the key to it has been missing since before any of you got out of bed.",
+      "choices": [
+        {
+          "label": "Get the cold store open",
           "requires": {
             "anyClue": [
               "key_missing",
@@ -634,32 +1154,68 @@
               "hal_saw_light"
             ]
           },
+          "minigame": {
+            "type": "timing",
+            "difficulty": 3,
+            "prompt": "No key. The wedge has to come out in one movement."
+          },
           "effects": {
             "set": {
               "found_captain": "yes"
             },
             "starsAll": 1
           },
-          "result": "The door has been wedged from the outside. Captain Vasquez has been in there for nine hours: furious, hoarse, upright, and very much alive.",
-          "next": "s17"
+          "result": "The door has been wedged from the outside with a mop handle. Captain Vasquez has been in there for nine hours: hoarse, upright, furious, and entirely alive.",
+          "next": "s30",
+          "failNext": "s30",
+          "failResult": "The handle snaps off in the hasp and jams the whole thing solid. It will take the coastguard and a cutting tool."
         },
         {
           "label": "There's no time. Go up.",
+          "effects": {
+            "stars": 1
+          },
           "result": "{spotlight} takes the stairs two at a time and does not look back down them.",
-          "next": "s17"
+          "next": "s30"
         },
         {
           "label": "Wait for Brann to authorise it",
+          "effects": {
+            "stars": 1
+          },
           "result": "He authorises it in due course, through the proper channel, at twenty past seven.",
-          "next": "s17"
+          "next": "s30"
         }
       ]
     },
-    "s17": {
+    "s30": {
+      "mode": "spotlight",
+      "background": "muster_deck",
+      "text": "Whatever just happened below decks, it is nearly six and there is a cutter on the radar.",
+      "choices": [
+        {
+          "label": "Get everyone onto the muster deck",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Forty people in the dark, in orange, on a flat sea.",
+          "next": "s31"
+        },
+        {
+          "label": "Get the evidence into one bag",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Pages, photographs, a ledger, a phone with no battery.",
+          "next": "s31"
+        }
+      ]
+    },
+    "s31": {
       "type": "crisis",
       "mode": "spotlight",
       "background": "muster_deck",
-      "text": "Brann puts his hand out for everything you have been carrying around all morning. He says it is evidence and should be secured. He is not, technically, wrong.",
+      "text": "Brann puts his hand out for everything you have been carrying around all morning. He says it is evidence and should be secured before the coastguard boards. He is not, technically, wrong.",
       "choices": [
         {
           "label": "Hand it over",
@@ -668,26 +1224,49 @@
             "removeClue": "torn_page"
           },
           "result": "He secures it in the safe on the bridge, correctly, and nobody sees it again before the coastguard does.",
-          "next": "s18"
+          "next": "s32"
         },
         {
           "label": "Refuse",
-          "cost": 3,
+          "cost": 2,
           "result": "{spotlight} says no, out loud, in front of forty people, and Brann decides not to make it a scene.",
-          "next": "s18"
+          "next": "s32"
         },
         {
           "label": "Hand over a copy and keep the original",
-          "cost": 6,
+          "cost": 5,
           "effects": {
             "starsAll": 1
           },
           "result": "He gets a photograph of every page, properly logged. You keep the paper. Everyone is satisfied and one of you is more satisfied than the other.",
-          "next": "s18"
+          "next": "s32"
         }
       ]
     },
-    "s18": {
+    "s32": {
+      "mode": "spotlight",
+      "background": "muster_deck",
+      "text": "The cutter is twenty minutes out. Whatever this room says first is what goes in the report.",
+      "choices": [
+        {
+          "label": "Get everyone's account straight",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Eight minutes, one version, and it holds together.",
+          "next": "s33"
+        },
+        {
+          "label": "Let everyone say their own piece",
+          "effects": {
+            "stars": 1
+          },
+          "result": "It will be messier and it will be true.",
+          "next": "s33"
+        }
+      ]
+    },
+    "s33": {
       "mode": "group",
       "background": "muster_deck",
       "text": "Forty people, one working light, and a question that has to be answered out loud. {everyone} decides together, and whatever gets said now is what the coastguard hears first.",
@@ -699,8 +1278,8 @@
               "accused": "brann"
             }
           },
-          "result": "He does not shout. He asks, very quietly, whether anyone would like to see the routine filing dates for the last four promotions on this ship.",
-          "next": "s19"
+          "result": "He does not shout. He asks, very quietly, whether anybody would like to see the countersigned watch log for last night.",
+          "next": "s34"
         },
         {
           "label": "Dr. Okonjo",
@@ -710,7 +1289,7 @@
             }
           },
           "result": "She says one sentence about patient confidentiality and then nothing else at all, to anyone, ever again.",
-          "next": "s19"
+          "next": "s34"
         },
         {
           "label": "Marisol Reyes",
@@ -719,8 +1298,8 @@
               "accused": "marisol"
             }
           },
-          "result": "She does not deny it. She asks whether he is all right, and that is the moment everyone knows.",
-          "next": "s19"
+          "result": "She does not deny it. She asks whether he is all right, and that is the moment everybody knows.",
+          "next": "s34"
         },
         {
           "label": "Teddy Vance",
@@ -729,8 +1308,8 @@
               "accused": "teddy"
             }
           },
-          "result": "He is so delighted to be important that it takes four minutes to establish that the footage shows him stealing a lobster.",
-          "next": "s19"
+          "result": "He is so delighted to be important that it takes four minutes to establish that his footage shows him stealing a lobster.",
+          "next": "s34"
         },
         {
           "label": "Hal, the night engineer",
@@ -739,46 +1318,75 @@
               "accused": "hal"
             }
           },
-          "result": "Hal has been awake for nineteen hours keeping the lights on for you. He says \"right\" and goes back down to the engine room.",
-          "next": "s19"
+          "result": "Hal has been awake for twenty hours keeping the lights on for you. He says \"right\" and goes back down the ladder.",
+          "next": "s34"
         },
         {
           "label": "We don't know. Say so.",
-          "result": "Nobody is accused. It is the honest answer and it satisfies precisely no one on that deck.",
-          "next": "s19"
+          "result": "Nobody is accused. The honest answer, and it satisfies precisely no one on that deck.",
+          "next": "s34"
         }
       ]
     },
-    "s19": {
+    "s34": {
       "mode": "spotlight",
       "background": "muster_deck",
       "text": "It has been said. {spotlight} is the one still standing up when the room turns round to look.",
       "choices": [
         {
           "label": "Stand by it",
+          "effects": {
+            "stars": 1
+          },
           "result": "Whatever it was, it is now yours.",
-          "next": "s20"
+          "next": "s35"
         },
         {
           "label": "Soften it",
-          "result": "{spotlight} adds three qualifications, and the deck stops listening halfway through the second.",
-          "next": "s20"
+          "effects": {
+            "stars": 1
+          },
+          "result": "{spotlight} adds three qualifications and the deck stops listening halfway through the second.",
+          "next": "s35"
         }
       ]
     },
-    "s20": {
+    "s35": {
       "mode": "spotlight",
-      "background": "dawn_deck",
-      "text": "A coastguard cutter comes over the horizon at ten past six and takes a long time to get bigger. {spotlight} watches it the whole way in.",
+      "background": "muster_deck",
+      "text": "The cutter comes alongside at six and a crew of nine comes up the ladder wanting, in this order: the captain, the log, and a list of everyone who has touched anything.",
       "choices": [
         {
-          "label": "Go down to meet it",
-          "result": "Down six decks, into whatever this turns out to have been.",
+          "label": "Give them the list",
+          "effects": {
+            "stars": 1
+          },
+          "result": "Every name, every room, every bin. It takes eleven minutes.",
+          "next": "s36"
+        },
+        {
+          "label": "Give them the captain first",
+          "effects": {
+            "stars": 1
+          },
+          "result": "If there is one to give.",
+          "next": "s36"
+        }
+      ]
+    },
+    "s36": {
+      "mode": "spotlight",
+      "background": "dawn_deck",
+      "text": "Ten past six, and the Sea Marigold is under tow. {spotlight} stays at the rail the whole way in.",
+      "choices": [
+        {
+          "label": "Watch the coast come up",
+          "result": "Flat sea, thin light. Objectively, a beautiful morning.",
           "next": null
         },
         {
-          "label": "Stay at the rail a moment longer",
-          "result": "The sea is completely flat. It is, objectively, a beautiful morning.",
+          "label": "Go below one last time",
+          "result": "The galley is dark and the cold store door is open and there is nothing left down there at all.",
           "next": null
         }
       ]
@@ -787,8 +1395,8 @@
   "endings": [
     {
       "id": "perfect",
-      "title": "Everything, before lunch",
-      "text": "The captain comes out of the cold store under his own steam, Marisol is named with four torn pages and a false-bottomed crate to back it up, and the coastguard has almost nothing left to do. Somebody on that deck will dine out on this for thirty years.",
+      "title": "Everything, before the cutter",
+      "text": "The captain comes out of the cold store under his own steam, Marisol is named with the pages and the night to back it up, and the coastguard has almost nothing left to do but write it down. Somebody on that deck will dine out on this for thirty years.",
       "requires": {
         "is": {
           "accused": "marisol",
@@ -796,16 +1404,17 @@
         },
         "hasClue": "torn_page",
         "anyClue": [
-          "cold_store_empty",
-          "key_missing",
-          "smuggling_crate"
+          "timeline",
+          "marisol_admission",
+          "smuggling_crate",
+          "captain_ledger"
         ]
       }
     },
     {
       "id": "rescued_and_named",
       "title": "He's alive, and she knows you know",
-      "text": "You got him out, and you said her name, and you cannot quite prove the second one. She does not argue. She sits down on an upturned crate and waits for the cutter, which is its own kind of confession.",
+      "text": "You got him out, and you said her name, and you cannot quite prove the second one. She does not argue. She sits down on an upturned crate and waits for the cutter, which is its own kind of answer.",
       "requires": {
         "is": {
           "accused": "marisol",
@@ -816,23 +1425,24 @@
     {
       "id": "airtight_too_late",
       "title": "Airtight, and three hours too late",
-      "text": "The case against her is complete: the pages, the crate, the ovens. Nobody opened the cold store. The coastguard does, at nine, and Captain Vasquez is alive and will not speak to any of you for the rest of the crossing.",
+      "text": "The case is complete: the pages, the ledger, the night laid out end to end. Nobody opened the cold store. The coastguard does, at nine, and Captain Vasquez is alive and will not speak to any of you for the rest of the crossing.",
       "requires": {
         "is": {
           "accused": "marisol"
         },
         "hasClue": "torn_page",
         "anyClue": [
-          "cold_store_empty",
-          "key_missing",
-          "smuggling_crate"
+          "timeline",
+          "marisol_admission",
+          "smuggling_crate",
+          "captain_ledger"
         ]
       }
     },
     {
       "id": "she_walks",
       "title": "She walks",
-      "text": "You said her name with nothing behind it. She says she was asleep, and keeps saying it, and there is not one thing on this ship to say otherwise. The coastguard finds the captain. Marisol is off the vessel in Cadiz before anyone thinks to look for her.",
+      "text": "You said her name with nothing behind it. She says she was asleep, and keeps saying it, and there is not one thing on this ship to say otherwise. The coastguard finds the captain. Marisol is off the vessel at Cadiz before anybody thinks to look for her.",
       "requires": {
         "is": {
           "accused": "marisol"
@@ -842,7 +1452,7 @@
     {
       "id": "captain_explains",
       "title": "The captain explains it himself",
-      "text": "You got the door open, which turns out to be the only part you needed. He is hoarse and extremely annoyed and he names her himself, in front of everyone, roughly nine seconds after you named somebody else entirely.",
+      "text": "You got the door open, which turns out to be the only part you needed. He is hoarse and extremely annoyed and he names her himself, in front of everybody, roughly nine seconds after you named somebody else entirely.",
       "requires": {
         "is": {
           "found_captain": "yes"
@@ -855,11 +1465,33 @@
     {
       "id": "found_never_knew",
       "title": "Found him. Never worked out why",
-      "text": "Nobody was accused and nobody needed to be: the man was behind a wedged door the whole time, and he had a great deal to say about who put him there. You get the credit for the rescue and none of it for the reasoning.",
+      "text": "Nobody was accused and nobody needed to be: the man was behind a wedged door the whole time and he had a great deal to say about who put him there. You get the credit for the rescue and none of it for the reasoning.",
       "requires": {
         "is": {
           "found_captain": "yes"
         }
+      }
+    },
+    {
+      "id": "reckless_brann",
+      "title": "You had his alibi in your hand",
+      "text": "The watch log was countersigned at two and at four and you had read it. You said his name anyway, because he was the easiest thing in the room to be angry at. He is cleared in eleven weeks. He is not a first officer in twelve.",
+      "requires": {
+        "is": {
+          "accused": "brann"
+        },
+        "hasClue": "brann_alibi"
+      }
+    },
+    {
+      "id": "reckless_okonjo",
+      "title": "You knew where she was",
+      "text": "Two people had already put her in the sick bay from one until four and you had spoken to both of them. You said her name regardless. She does not defend herself, then or later, and that is the part that stays with everybody.",
+      "requires": {
+        "is": {
+          "accused": "okonjo"
+        },
+        "hasClue": "okonjo_statement"
       }
     },
     {
@@ -885,7 +1517,7 @@
     {
       "id": "ruined_bystander",
       "title": "You picked the easiest person",
-      "text": "It was the influencer, or it was the tired man who had kept the lights on all night. Either way it was whoever was easiest to say out loud at the time. The cutter's crew find the captain in under forty minutes, which is the detail that follows everybody home.",
+      "text": "It was the influencer, or it was the tired man who had kept the lights on all night. Either way it was whoever was easiest to say out loud at six in the morning. The cutter's crew find the captain in under forty minutes, which is the detail that follows everybody home.",
       "requires": {
         "isAny": {
           "accused": [

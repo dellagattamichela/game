@@ -88,10 +88,28 @@ describe("stranded", () => {
   const runs = Array.from({ length: 8000 }, () => sampleRun(story, PLAYERS, rand, watcher.onScene));
 
   it("matches the shape promised in docs/stranded-scenario-map.md", () => {
-    expect(Object.keys(story.scenes)).toHaveLength(20);
-    expect(Object.keys(story.clues ?? {})).toHaveLength(12);
-    expect(story.endings).toHaveLength(10);
+    expect(Object.keys(story.scenes)).toHaveLength(36);
+    expect(Object.keys(story.clues ?? {})).toHaveLength(21);
+    expect(story.endings).toHaveLength(12);
     expect(story.vars?.accused.values).toHaveLength(5);
+  });
+
+  it("gates eight moments behind a skill test, across all four kinds", () => {
+    const attempts = Object.values(story.scenes).flatMap((sc) =>
+      sc.choices.filter((c) => c.minigame).map((c) => c.minigame!.type),
+    );
+    expect(attempts).toHaveLength(8);
+    expect(new Set(attempts)).toEqual(new Set(["timing", "memory", "search", "order"]));
+  });
+
+  it("never lets a failed skill test dead-end the story", () => {
+    for (const [sceneId, scene] of Object.entries(story.scenes)) {
+      for (const choice of scene.choices) {
+        if (!choice.minigame) continue;
+        const onFail = choice.failNext ?? choice.next;
+        expect(onFail, `${sceneId} has a skill test that leads nowhere on failure`).toBeTruthy();
+      }
+    }
   });
 
   it("every ending is reachable", () => {
@@ -120,7 +138,7 @@ describe("stranded", () => {
   });
 
   it("all three gates are real decisions", () => {
-    for (const sceneId of ["s9", "s11", "s17"]) {
+    for (const sceneId of ["s11", "s15", "s27", "s31"]) {
       const at = watcher.samples.filter((s) => s.sceneId === sceneId);
       const solo = at.filter((s) => s.solo).length / at.length;
       expect(solo, `${sceneId} solo affordability`).toBeGreaterThan(0.2);
@@ -136,7 +154,8 @@ describe("stranded", () => {
  */
 describe("stranded ending matrix", () => {
   const story = requireStory("stranded");
-  const STRONG = ["torn_page", "cold_store_empty"];
+  // Strong proof is the page plus something that corroborates it; see §7 of the map.
+  const STRONG = ["torn_page", "timeline"];
   const WEAK = ["marisol_alibi_broken"];
 
   const outcome = (clues: string[], vars: Record<string, string>) =>
@@ -172,6 +191,20 @@ describe("stranded ending matrix", () => {
     // torn_page alone is the weak tier: it names her, it does not place her.
     expect(outcome(["torn_page"], { accused: "marisol", found_captain: "yes" })).toBe(
       "rescued_and_named",
+    );
+  });
+
+  it("judges a wrong accusation harder when the room held the alibi", () => {
+    expect(outcome(["brann_alibi"], { accused: "brann" })).toBe("reckless_brann");
+    expect(outcome(["okonjo_statement"], { accused: "okonjo" })).toBe("reckless_okonjo");
+    // Without the exculpatory clue it is a mistake, not a choice.
+    expect(outcome([], { accused: "brann" })).toBe("ruined_brann");
+  });
+
+  it("lets a rescue override even a reckless accusation", () => {
+    // He is standing right there to correct the record.
+    expect(outcome(["brann_alibi"], { accused: "brann", found_captain: "yes" })).toBe(
+      "captain_explains",
     );
   });
 });
