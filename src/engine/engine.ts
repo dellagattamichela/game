@@ -11,6 +11,7 @@
  * the identical function to predict the outcome. Any impurity here would show up
  * as two players seeing different stories.
  */
+import { matchesCondition } from "./conditions";
 import { resolveText, type TextContext } from "./text";
 import type {
   Action,
@@ -25,6 +26,9 @@ import type {
   Scene,
   Story,
 } from "./types";
+
+const asArray = (v: string | string[] | undefined): string[] =>
+  v === undefined ? [] : Array.isArray(v) ? v : [v];
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -42,6 +46,8 @@ export function createGame(
     players: players.map((p) => ({ ...p, stars: story.startingStars })),
     spotlightIndex: 0,
     mishaps: [],
+    clues: [],
+    vars: {},
     votes: {},
     gifts: [],
     pending: null,
@@ -107,9 +113,19 @@ export type ChoiceView = {
   index: number;
   label: string;
   cost: number;
-  /** True when the cost is above what the spotlight player can pay. */
+  /** The choice's `requires` condition is satisfied. */
+  available: boolean;
+  /**
+   * Unavailable and the story offered no hint: do not render it at all.
+   * Rendering it greyed out would tell players that evidence they have not
+   * found exists, which is the one thing an investigation must not leak.
+   */
+  hidden: boolean;
+  /** Shown, but not pickable right now. */
   locked: boolean;
-  /** Stars still needed. 0 unless locked. Drives the "who can help?" prompt. */
+  /** Why it is locked, ready to display. Null when the choice is pickable. */
+  lockedReason: string | null;
+  /** Stars still needed. 0 unless locked on price. Drives the "who can help?" prompt. */
   shortfall: number;
   votes: string[];
 };
@@ -138,14 +154,23 @@ export function sceneView(story: Story, state: GameState): SceneView {
 
   const choices: ChoiceView[] = scene.choices.map((choice, index) => {
     const cost = effectiveCost(story, state, scene, choice);
-    // Only spotlight scenes are payable, so only they can lock.
-    const locked = mode === "spotlight" && cost > spotlight.stars;
+    const available = matchesCondition(choice.requires, state);
+    // Only spotlight scenes are payable, so only they can lock on price.
+    const tooExpensive = available && mode === "spotlight" && cost > spotlight.stars;
+
     return {
       index,
       label: resolveText(choice.label, ctx),
       cost,
-      locked,
-      shortfall: locked ? cost - spotlight.stars : 0,
+      available,
+      hidden: !available && !choice.lockedHint,
+      locked: !available || tooExpensive,
+      lockedReason: !available
+        ? (choice.lockedHint ?? null)
+        : tooExpensive
+          ? `needs ${cost - spotlight.stars} more ⭐`
+          : null,
+      shortfall: tooExpensive ? cost - spotlight.stars : 0,
       votes: Object.entries(state.votes)
         .filter(([, v]) => v === index)
         .map(([playerId]) => playerId),
@@ -179,14 +204,7 @@ export function totalStars(state: GameState): number {
  */
 export function resolveEnding(story: Story, state: GameState): Ending {
   for (const ending of story.endings) {
-    const r = ending.requires;
-    if (!r) return ending;
-    if (r.minMishaps !== undefined && state.mishaps.length < r.minMishaps) continue;
-    if (r.maxMishaps !== undefined && state.mishaps.length > r.maxMishaps) continue;
-    if (r.hasMishap !== undefined && !state.mishaps.includes(r.hasMishap)) continue;
-    if (r.lacksMishap !== undefined && state.mishaps.includes(r.lacksMishap)) continue;
-    if (r.minTotalStars !== undefined && totalStars(state) < r.minTotalStars) continue;
-    return ending;
+    if (matchesCondition(ending.requires, state)) return ending;
   }
   return story.endings[story.endings.length - 1];
 }
@@ -269,8 +287,10 @@ function applyVote(
   if (!state.players.some((p) => p.id === action.playerId)) {
     return reject("unknown_player", "That player is not in this room.");
   }
-  if (!scene.choices[action.choiceIndex]) {
-    return reject("unknown_choice", "That option does not exist.");
+  const target = scene.choices[action.choiceIndex];
+  if (!target) return reject("unknown_choice", "That option does not exist.");
+  if (!matchesCondition(target.requires, state)) {
+    return reject("unavailable_choice", "The room does not know enough for that yet.");
   }
 
   // Re-voting is allowed until the last player commits, so a group can talk it out.
@@ -316,8 +336,12 @@ function applyChoose(
   if (action.playerId !== spotlightPlayer(state).id) {
     return reject("not_spotlight", "Only the spotlight player picks this scene.");
   }
-  if (!scene.choices[action.choiceIndex]) {
-    return reject("unknown_choice", "That option does not exist.");
+  const choice = scene.choices[action.choiceIndex];
+  if (!choice) return reject("unknown_choice", "That option does not exist.");
+  if (!matchesCondition(choice.requires, state)) {
+    // Reachable only from a stale client, but it must be refused server-side:
+    // the whole point of hiding an option is that it cannot be taken.
+    return reject("unavailable_choice", "The room does not know enough for that yet.");
   }
 
   return commitChoice(story, state, action.choiceIndex, [action.playerId]);
@@ -374,6 +398,16 @@ function commitChoice(
     effects.addMishap && !mishaps.includes(effects.addMishap) ? effects.addMishap : null;
   if (mishapAdded) mishaps = [...mishaps, mishapAdded];
 
+  let clues = state.clues;
+  const removedClues = asArray(effects.removeClue);
+  if (removedClues.length) clues = clues.filter((id) => !removedClues.includes(id));
+  // Only genuinely new clues are reported, so re-visiting a scene cannot make
+  // the result beat announce a discovery the room already had.
+  const cluesFound = asArray(effects.addClue).filter((id) => !clues.includes(id));
+  if (cluesFound.length) clues = [...clues, ...cluesFound];
+
+  const vars = effects.set ? { ...state.vars, ...effects.set } : state.vars;
+
   const ctx = textContext(state);
   const entry: LogEntry = {
     sceneId: state.sceneId,
@@ -382,6 +416,7 @@ function commitChoice(
     label: resolveText(choice.label, ctx),
     starsSpent: cost,
     mishapAdded,
+    cluesFound,
   };
 
   return {
@@ -391,6 +426,8 @@ function commitChoice(
       phase: "result",
       players,
       mishaps,
+      clues,
+      vars,
       pending: {
         sceneId: state.sceneId,
         choiceIndex,
@@ -399,6 +436,7 @@ function commitChoice(
         deltas,
         gifts: state.gifts,
         mishapAdded,
+        cluesFound,
         next: choice.next ?? null,
       },
       log: [...state.log, entry],

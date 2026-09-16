@@ -8,6 +8,47 @@
  */
 
 // ---------------------------------------------------------------------------
+// Conditions
+// ---------------------------------------------------------------------------
+
+/**
+ * A test against the current run, used by both choices and endings.
+ *
+ * Every field present must hold — the fields are ANDed together. Where a story
+ * needs OR, the field itself expresses it (`anyClue`, `isAny`), which keeps
+ * conditions flat and readable in JSON rather than turning them into a tree.
+ */
+export type Condition = {
+  /** Every one of these clues must be held. */
+  hasClue?: string | string[];
+  /** At least one of these clues must be held. */
+  anyClue?: string[];
+  /** None of these clues may be held. */
+  lacksClue?: string | string[];
+  minClues?: number;
+  maxClues?: number;
+
+  hasMishap?: string;
+  lacksMishap?: string;
+  minMishaps?: number;
+  maxMishaps?: number;
+
+  /** Run variables that must equal exactly this value. */
+  is?: Record<string, string>;
+  /** Run variables that must not equal this value (unset counts as not equal). */
+  isNot?: Record<string, string>;
+  /** Run variables whose value must be one of these. */
+  isAny?: Record<string, string[]>;
+  /** These variables must have some value. */
+  isSet?: string[];
+  /** These variables must have no value. */
+  isUnset?: string[];
+
+  /** Unspent Stars across the whole room. */
+  minTotalStars?: number;
+};
+
+// ---------------------------------------------------------------------------
 // Story data (authored as JSON, see src/stories/*.json)
 // ---------------------------------------------------------------------------
 
@@ -21,6 +62,12 @@ export type EffectSpec = {
   addMishap?: string;
   /** Id of a mishap to clear. Lets a later scene undo an earlier setback. */
   removeMishap?: string;
+  /** Clue(s) the group learns. Already-known clues are ignored. */
+  addClue?: string | string[];
+  /** Clue(s) the group loses — a retraction, or evidence destroyed. */
+  removeClue?: string | string[];
+  /** Run variables to set, such as who the room decided to accuse. */
+  set?: Record<string, string>;
 };
 
 export type Choice = {
@@ -30,6 +77,21 @@ export type Choice = {
    * Only crisis scenes may carry a cost (enforced in validate.ts).
    */
   cost?: number;
+  /**
+   * What the run must look like for this choice to exist.
+   *
+   * Unmet requirements HIDE the choice rather than locking it. You cannot
+   * confront someone with evidence you have not found, and showing the option
+   * greyed out would tell players the evidence exists. This is deliberately the
+   * opposite of a Star gate, which is shown locked with its price: money you can
+   * see you lack, but a thought you have not had you cannot.
+   */
+  requires?: Condition;
+  /**
+   * Overrides the hiding above: the choice is shown locked with this text as the
+   * reason. For the rare gate a story wants players to know they are missing.
+   */
+  lockedHint?: string;
   effects?: EffectSpec;
   /** Short beat shown after the choice lands, before the next scene. */
   result?: string;
@@ -64,15 +126,21 @@ export type Mishap = {
   crisisCostDelta?: number;
 };
 
-export type EndingRequirement = {
-  minMishaps?: number;
-  maxMishaps?: number;
-  /** Requires this specific mishap to be active. */
-  hasMishap?: string;
-  /** Requires this specific mishap to be absent. */
-  lacksMishap?: string;
-  /** Total unspent Stars across the whole room. */
-  minTotalStars?: number;
+/** Something the group has learned. Shown to players as their notebook. */
+export type Clue = {
+  id: string;
+  title: string;
+  description?: string;
+};
+
+/**
+ * A run variable a story can set and later read, such as who was accused.
+ * Declaring the allowed values means a typo in `set` or `is` fails validation
+ * instead of silently never matching an ending.
+ */
+export type VarSpec = {
+  title?: string;
+  values: string[];
 };
 
 export type Ending = {
@@ -80,7 +148,7 @@ export type Ending = {
   title: string;
   text?: string;
   /** Omitted means "always matches" — use it for the final fallback ending. */
-  requires?: EndingRequirement;
+  requires?: Condition;
 };
 
 export type Story = {
@@ -93,6 +161,8 @@ export type Story = {
   start: string;
   scenes: Record<string, Scene>;
   mishaps?: Record<string, Mishap>;
+  clues?: Record<string, Clue>;
+  vars?: Record<string, VarSpec>;
   /** Evaluated top to bottom; the first match wins, so order matters. */
   endings: Ending[];
 };
@@ -116,6 +186,7 @@ export type LogEntry = {
   label: string;
   starsSpent: number;
   mishapAdded: string | null;
+  cluesFound: string[];
 };
 
 /** A star transfer from one player to another, within the current scene. */
@@ -141,6 +212,8 @@ export type PendingResult = {
   /** Gifts made during the scene, kept so the result beat can credit them. */
   gifts: Gift[];
   mishapAdded: string | null;
+  /** Clues newly learned, so the result beat can call them out. */
+  cluesFound: string[];
   next: string | null;
 };
 
@@ -155,6 +228,10 @@ export type GameState = {
   spotlightIndex: number;
   /** Ids of active mishaps, in the order they were collected. */
   mishaps: string[];
+  /** Ids of clues found, in the order they were found. The group's notebook. */
+  clues: string[];
+  /** Single-valued run state, such as `accused`. */
+  vars: Record<string, string>;
   /** Group scenes only: playerId -> choiceIndex. Cleared between scenes. */
   votes: Record<string, number>;
   /** Gifts made during the current scene. Cleared between scenes. */
@@ -194,6 +271,7 @@ export type RejectionCode =
   | "not_spotlight"
   | "unknown_player"
   | "unknown_choice"
+  | "unavailable_choice"
   | "cannot_afford"
   | "invalid_gift"
   | "already_ended";
