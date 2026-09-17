@@ -11,6 +11,7 @@
  * feature does not exist yet: `character` arrives with the creator (stage 2),
  * and `game` stays null until multiplayer turns (stage 4).
  */
+import type { Character } from "@/characters/types";
 import type { GameState, RejectionCode } from "@/engine/types";
 
 /** 2 is the smallest group a story is written for; 6 is where waiting starts to hurt. */
@@ -31,6 +32,13 @@ export type RoomPlayer = {
    */
   id: string;
   name: string;
+  /**
+   * Never null: everyone gets a face the moment they sit down, derived from
+   * their player id, and the creator personalises it. A lobby of blank
+   * silhouettes waiting to be filled in is a worse first impression than a
+   * lobby of strangers.
+   */
+  character: Character;
   /** Host powers: picking the story, starting, removing players. */
   isHost: boolean;
   ready: boolean;

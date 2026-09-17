@@ -6,7 +6,10 @@
  * are arguments, which is what lets the tests assert on an exact room object
  * and what will let a server route handler call this inside a transaction.
  */
+import { normalizeCharacter, randomCharacter } from "@/characters/character";
+import type { Character } from "@/characters/types";
 import { createGame } from "@/engine/engine";
+import { hashString } from "@/engine/rng";
 import type { Story } from "@/engine/types";
 import { isValidCode } from "./code";
 import {
@@ -70,6 +73,7 @@ export function createRoom({ code, host, maxPlayers, now }: CreateRoomInput): Ro
   const hostPlayer: RoomPlayer = {
     id: host.id,
     name,
+    character: randomCharacter(hashString(host.id)),
     isHost: true,
     // The host is ready by definition: they are looking at the lobby already.
     ready: true,
@@ -180,6 +184,7 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
   const joined: RoomPlayer = {
     id: player.id,
     name,
+    character: randomCharacter(hashString(player.id)),
     isHost: false,
     // Unlike the host, a joiner has a character to build and a story to read
     // about first, so they start not ready and say so themselves.
@@ -343,6 +348,39 @@ export function startGame({ room, playerId, story, seed, now }: StartGameInput):
         room.players.map((p) => ({ id: p.id, name: p.name })),
         seed,
       ),
+      updatedAt: now,
+    },
+  };
+}
+
+/**
+ * Save what a player built in the creator.
+ *
+ * The character is normalised on the way in rather than validated and
+ * rejected: it arrives from a browser, it is cosmetic, and the worst a bad
+ * field can do is fall back to a default. Refusing the whole thing over one
+ * unknown hair id would break a player's lobby to protect nothing.
+ *
+ * Allowed during a game as well as in the lobby — changing your shirt mid-scene
+ * affects no rule, and the alternative is telling someone they are stuck
+ * looking like that for the next fifty minutes.
+ */
+export function setCharacter(
+  room: Room,
+  playerId: string,
+  character: unknown,
+  now: number,
+): RoomResult {
+  if (!isMember(room, playerId)) {
+    return { ok: false, code: "not_a_member", message: "You are not in this room." };
+  }
+
+  const dressed: Character = normalizeCharacter(character);
+  return {
+    ok: true,
+    room: {
+      ...room,
+      players: room.players.map((p) => (p.id === playerId ? { ...p, character: dressed } : p)),
       updatedAt: now,
     },
   };

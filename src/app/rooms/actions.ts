@@ -209,3 +209,22 @@ export async function playAction(code: string, input: unknown): Promise<LobbySta
   refresh();
   return { error: null };
 }
+
+/**
+ * Save a character.
+ *
+ * Takes `unknown` on purpose: the payload is cosmetic, it comes from a browser,
+ * and `setCharacter` normalises every field against the catalog. A shirt is not
+ * a rule, so an unknown part falls back to a default rather than rejecting the
+ * whole save and leaving someone stuck mid-edit.
+ */
+export async function saveCharacterAction(code: string, character: unknown): Promise<LobbyState> {
+  const playerId = await currentPlayerId();
+  if (!playerId) return NOT_YOU;
+
+  const result = rooms.dress(code, playerId, character);
+  if (!result.ok) return { error: result.message };
+
+  refresh();
+  return { error: null };
+}

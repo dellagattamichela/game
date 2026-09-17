@@ -20,7 +20,7 @@ import { newSeed } from "@/engine/rng";
 import type { Action } from "@/engine/types";
 import { getStory } from "@/stories";
 import { CODE_LENGTH, MAX_CODE_LENGTH, generateCode, normalizeCode } from "./code";
-import { createRoom, joinRoom, pickStory, setReady, startGame } from "./room";
+import { createRoom, joinRoom, pickStory, setCharacter, setReady, startGame } from "./room";
 import {
   DEFAULT_MAX_PLAYERS,
   type Room,
@@ -60,6 +60,8 @@ export type RoomStore = {
   join(code: string, input: JoinRoomStoreInput): RoomResult;
   /** A player marks themselves ready, or takes it back. */
   ready(code: string, playerId: string, ready: boolean): RoomResult;
+  /** A player saves what they built in the character creator. */
+  dress(code: string, playerId: string, character: unknown): RoomResult;
   /** The host chooses the story. Refuses an id the registry does not know. */
   chooseStory(code: string, playerId: string, storyId: string): RoomResult;
   /** The host starts: the room hands itself to the engine. */
@@ -185,6 +187,12 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
       const room = find(code);
       if (!room) return notFound();
       return commit(setReady(room, playerId, ready, now()));
+    },
+
+    dress(code, playerId, character) {
+      const room = find(code);
+      if (!room) return notFound();
+      return commit(setCharacter(room, playerId, character, now()));
     },
 
     chooseStory(code, playerId, storyId) {

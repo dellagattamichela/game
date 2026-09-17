@@ -21,6 +21,8 @@ import {
   type StoryCard,
 } from "../_components/lobby-controls";
 import { RoomTable, type StoryChrome } from "../_components/room-table";
+import { CharacterPortrait } from "@/app/_components/character-portrait";
+import type { Character } from "@/characters/types";
 import { resolveEnding, sceneView } from "@/engine/engine";
 import type { GameState, Story } from "@/engine/types";
 import { normalizeCode } from "@/rooms/code";
@@ -75,6 +77,13 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
 
       {room.status === "lobby" ? (
         <>
+          <Link
+            href={`/rooms/${room.code}/character`}
+            className="border px-3 py-2 text-center text-sm"
+          >
+            Build your character
+          </Link>
+
           {me ? <ReadyToggle code={room.code} ready={me.ready} /> : null}
 
           {isHost ? (
@@ -95,7 +104,13 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
           ) : null}
         </>
       ) : (
-        <Table game={room.game} story={story} code={room.code} myId={playerId} />
+        <Table
+          game={room.game}
+          story={story}
+          code={room.code}
+          myId={playerId}
+          characters={Object.fromEntries(room.players.map((p) => [p.id, p.character]))}
+        />
       )}
 
       <Link href="/" className="text-sm underline opacity-70">
@@ -118,11 +133,14 @@ function Table({
   story,
   code,
   myId,
+  characters,
 }: {
   game: GameState | null;
   story: Story | undefined;
   code: string;
   myId: string;
+  /** Seats keep the faces; the engine's players only know names and Stars. */
+  characters: Record<string, Character>;
 }) {
   if (!story || !game) return null;
 
@@ -157,6 +175,7 @@ function Table({
       game={game}
       view={sceneView(story, game)}
       chrome={chrome}
+      characters={characters}
     />
   );
 }
@@ -221,8 +240,9 @@ function Roster({ room, playerId }: { room: Room; playerId: string | null }) {
         Players ({room.players.length}/{room.maxPlayers})
       </h2>
       {room.players.map((player) => (
-        <div key={player.id} className="flex items-center justify-between border px-2 py-1">
-          <span>
+        <div key={player.id} className="flex items-center gap-2 border px-2 py-1">
+          <CharacterPortrait player={player} character={player.character} size={32} />
+          <span className="flex-1">
             {player.name}
             {player.id === playerId ? <span className="opacity-60"> (you)</span> : null}
           </span>

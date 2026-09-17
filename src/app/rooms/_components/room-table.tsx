@@ -16,6 +16,7 @@
  */
 import { useState, useTransition } from "react";
 import { CharacterPortrait } from "@/app/_components/character-portrait";
+import type { Character } from "@/characters/types";
 import { Minigame } from "@/app/_components/minigames";
 import { hashString } from "@/engine/rng";
 import type { GameState, PlayerState } from "@/engine/types";
@@ -39,12 +40,14 @@ export function RoomTable({
   game,
   view,
   chrome,
+  characters,
 }: {
   code: string;
   myId: string;
   game: GameState;
   view: SceneView;
   chrome: StoryChrome;
+  characters: Record<string, Character>;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -64,6 +67,7 @@ export function RoomTable({
       <Cast
         game={game}
         myId={myId}
+        characters={characters}
         spotlightId={view.spotlight.id}
         canGive={game.phase === "scene" && !pending}
         onGive={(toId) => play({ kind: "give", toId, amount: 1 })}
@@ -118,12 +122,14 @@ export function RoomTable({
 function Cast({
   game,
   myId,
+  characters,
   spotlightId,
   canGive,
   onGive,
 }: {
   game: GameState;
   myId: string;
+  characters: Record<string, Character>;
   spotlightId: string;
   canGive: boolean;
   onGive: (toId: string) => void;
@@ -140,6 +146,7 @@ function Cast({
             <li key={player.id} className="flex flex-col items-center gap-1">
               <CharacterPortrait
                 player={player}
+                character={characters[player.id]}
                 size={isSpotlight ? 72 : 56}
                 dimmed={!ended && !isSpotlight}
               />

@@ -15,17 +15,19 @@ The prototype at `/` puts the whole room on one screen and you act as whoever
 the turn belongs to. It is still the quickest way to read a story end to end,
 and it stays as the place to test a story without gathering four people.
 
-Stages 3 and 4 work end to end: a creator makes a room and gets an invite code,
-other people walk in through it, everyone readies up, the host picks a story,
-and the room plays it — one seat per browser, spotlight turns, group votes,
-Star-giving and skill tests, through to an ending. What is missing is the art
-and the polish: no character creator, no backgrounds, no turn timer, and rooms
-talk over polling rather than a real-time channel.
+Stages 2 to 4 work end to end: a creator makes a room and gets an invite code,
+other people walk in through it, everyone builds a character and readies up,
+the host picks a story, and the room plays it — one seat per browser, spotlight
+turns, group votes, Star-giving and skill tests, through to an ending.
+
+What is missing is the drawings and the polish. Every character part is a
+placeholder made of rectangles, there are no backgrounds, no turn timer, and
+rooms talk over polling rather than a real-time channel.
 
 | Stage | Status |
 |---|---|
 | 1. Single-browser prototype | done |
-| 2. Character creator | not started |
+| 2. Character creator | done, on placeholder art |
 | 3. Rooms | done: create, invite, join, rejoin, ready, pick, start |
 | 4. Multiplayer turns | done: one seat per browser, played over polling |
 | 5. Polish | not started |
@@ -43,11 +45,12 @@ npm run scenarios  # coverage report: endings, clues, gates
 ## How it fits together
 
 ```
-src/engine/    the game rules, as a pure reducer
-src/stories/   stories as JSON data
-src/rooms/     rooms and invite codes
-src/app/       the prototype UI
-scripts/       the scenario coverage tool
+src/engine/      the game rules, as a pure reducer
+src/stories/     stories as JSON data
+src/rooms/       rooms and invite codes
+src/characters/  the character model and the parts catalog
+src/app/         the UI: the prototype, the lobby, the table
+scripts/         the scenario coverage tool
 ```
 
 **The engine is a pure function** — `applyAction(story, state, action)` returns a
@@ -187,6 +190,64 @@ table, but it means a quick clicker can move past a result beat before everyone
 has read it. And a client reports its own skill-test outcome, so it could lie
 about passing; that is the trade the design doc already makes for turn timers,
 and it is the same trade for a game among friends.
+
+## Characters
+
+Stage 2, built as the design doc §4 describes it and running on placeholder art:
+every part is a handful of rectangles rather than a drawing. The *structure* is
+the real one, so the art arriving is a change to one file.
+
+A character is a list of choices, never an image:
+
+```json
+{ "body": "soft", "skin": "olive", "hair": "long", "hairColor": "chestnut",
+  "eyes": "round", "eyeColor": "green", "brows": "fine", "mouth": "smile",
+  "top": "hoodie", "topColor": "teal", "accessory": "glasses" }
+```
+
+| | |
+|---|---|
+| `types.ts` | The layer stack, the sprite grid, and what a character is. |
+| `catalog.ts` | The parts and palettes. **This is the placeholder art**, and the only file real drawings touch. |
+| `character.ts` | Defaults, normalising, seeded randomising, cycling a layer. Pure. |
+
+**The sprite grid is 64, not the doc's 32.** The doc says to follow the
+reference art where it differs, and `docs/reference/admin.png` is a portrait
+bust at roughly 64 logical pixels. Placeholder shapes use those coordinates, so
+real 64×64 art lines up without moving anything.
+
+**Colour is a palette swap, not another drawing.** Each part is drawn in four
+key shades — base, shadow, light, line — and the colour arrives at render time
+from whichever palette the player picked. One hair drawing covers eight hair
+colours, and the eyebrows take the hair palette too, so the face follows for
+free. Garment colours are generated from a hue list, because flat-dyed cloth
+really is one hue at three lightnesses; skin and hair shades are written out,
+because there they are a drawing decision.
+
+**Parts are saved by id, not by index.** The doc's example saves `"hair": 7`,
+but an index is a promise never to reorder or insert a part, and every saved
+character breaks the first time someone does.
+
+**A saved character outlives the catalog that made it.** `normalizeCharacter`
+coerces anything into something drawable: an unknown part falls back to that
+layer's default, junk becomes the default character, and an unknown accessory
+becomes none. A player's hair reverting is a small disappointment; a lobby that
+cannot draw one of its players is a broken room. `setCharacter` therefore
+normalises rather than rejecting — a shirt is not a rule.
+
+**Nobody starts faceless.** A player gets a character the moment they sit down,
+derived from their player id, and the creator personalises it. That is also
+what gives the hot-seat prototype a cast of distinct faces without a creator,
+and what makes `randomCharacter` worth keeping pure: the same seed draws the
+same person on every machine.
+
+The creator lives at `/rooms/CODE/character` — a route, not a panel, so there
+is no lobby polling underneath redrawing the page while someone picks a
+hairstyle. It saves on a button rather than on every click, because forty saves
+on the way to one face is forty redraws in everyone else's lobby. What you
+build is also kept in this browser, and **My last character** brings it back in
+the next room — a button rather than an automatic load, so it never overwrites
+what you already look like here without being asked.
 
 ## Writing a story
 

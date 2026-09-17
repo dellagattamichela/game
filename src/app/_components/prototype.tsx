@@ -177,7 +177,7 @@ function Setup({
         </legend>
         {names.map((name, i) => (
           <div key={i} className="flex items-center gap-2">
-            <CharacterPortrait player={{ id: `p${i + 1}`, name, stars: 0 }} size={32} />
+            <CharacterPortrait player={{ id: `p${i + 1}`, name }} size={32} />
             <input
               aria-label={`Player ${i + 1} name`}
               className="flex-1 border px-2 py-1"

@@ -6,6 +6,7 @@ import {
   isMember,
   joinRoom,
   normalizeName,
+  setCharacter,
   pickStory,
   setReady,
   startBlocker,
@@ -14,6 +15,8 @@ import {
 import { createRoomStore } from "./store";
 import { DEFAULT_MAX_PLAYERS, MAX_NAME_LENGTH, type Room } from "./types";
 import { requireStory } from "@/stories";
+import { DEFAULT_CHARACTER, randomCharacter } from "@/characters/character";
+import { hashString } from "@/engine/rng";
 import type { Story } from "@/engine/types";
 
 const HOST = { id: "host-1", name: "Michela" };
@@ -46,6 +49,8 @@ describe("createRoom", () => {
         {
           id: "host-1",
           name: "Michela",
+          // Everyone arrives with a face, derived from their player id.
+          character: randomCharacter(hashString("host-1")),
           isHost: true,
           ready: true,
           connected: true,
@@ -133,6 +138,7 @@ describe("joinRoom", () => {
     expect(result.room.players[1]).toEqual({
       id: "p2",
       name: "Bo",
+      character: randomCharacter(hashString("p2")),
       isHost: false,
       ready: false,
       connected: true,
@@ -418,6 +424,51 @@ describe("startGame", () => {
 
     expect(result).toMatchObject({ ok: false, code: "not_everyone_ready" });
     expect(result.ok === false && result.message).toBe(startBlocker(room, STORY)?.message);
+  });
+});
+
+describe("setCharacter", () => {
+  function lobby() {
+    const result = createRoom({ code: "MNPQ", host: HOST, maxPlayers: 4, now: 1000 });
+    if (!result.ok) throw new Error("fixture failed");
+    return result.room;
+  }
+
+  it("dresses one player and leaves the others alone", () => {
+    const room = lobby();
+    const joined = joinRoom({ room, player: { id: "p2", name: "Bo" }, now: 2000 });
+    if (!joined.ok) throw new Error("fixture failed");
+    const before = joined.room.players[1].character;
+
+    const result = setCharacter(joined.room, HOST.id, DEFAULT_CHARACTER, 3000);
+
+    expect(result.ok && result.room.players[0].character).toEqual(DEFAULT_CHARACTER);
+    expect(result.ok && result.room.players[1].character).toBe(before);
+    expect(result.ok && result.room.updatedAt).toBe(3000);
+  });
+
+  it("normalises rather than refusing, because a shirt is not a rule", () => {
+    const result = setCharacter(lobby(), HOST.id, { hair: "mullet-from-2019" }, 3000);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.room.players[0].character).toEqual(DEFAULT_CHARACTER);
+  });
+
+  it("survives junk from a client", () => {
+    const result = setCharacter(lobby(), HOST.id, "not a character", 3000);
+    expect(result.ok && result.room.players[0].character).toEqual(DEFAULT_CHARACTER);
+  });
+
+  it("still works once the story has started", () => {
+    const room = { ...lobby(), status: "playing" as const };
+    expect(setCharacter(room, HOST.id, DEFAULT_CHARACTER, 3000)).toMatchObject({ ok: true });
+  });
+
+  it("refuses someone who is not in the room", () => {
+    expect(setCharacter(lobby(), "stranger", DEFAULT_CHARACTER, 3000)).toMatchObject({
+      ok: false,
+      code: "not_a_member",
+    });
   });
 });
 
@@ -713,6 +764,26 @@ describe("the store", () => {
     const store = createRoomStore();
     expect(store.act("MNPQ", { type: "continue", playerId: "h" })).toMatchObject({
       code: "room_not_found",
+    });
+  });
+
+  it("saves a character and hands it to everyone who reads the room", () => {
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ") });
+    store.open({ hostId: "h", hostName: "Michela" });
+
+    expect(store.dress("MNPQ", "h", { ...DEFAULT_CHARACTER, hair: "long" })).toMatchObject({
+      ok: true,
+    });
+    expect(store.find("MNPQ")?.players[0].character.hair).toBe("long");
+  });
+
+  it("will not let one player dress another", () => {
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ") });
+    store.open({ hostId: "h", hostName: "Michela" });
+
+    expect(store.dress("MNPQ", "p2", DEFAULT_CHARACTER)).toMatchObject({
+      ok: false,
+      code: "not_a_member",
     });
   });
 
