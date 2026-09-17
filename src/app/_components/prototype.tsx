@@ -13,6 +13,7 @@
  * left, and a turn announcement between scenes. The art inside it is placeholder
  * (see character-portrait.tsx); the mechanic is what is being tested.
  */
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import {
   applyAction,
@@ -213,6 +214,10 @@ function Setup({
           Start
         </button>
       </div>
+
+      <Link href="/rooms/new" className="text-sm underline opacity-70">
+        Or create a room with an invite code (stage 3, in progress)
+      </Link>
     </main>
   );
 }

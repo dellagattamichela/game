@@ -10,16 +10,19 @@ Design doc: [`docs/pilot-season-design-doc.md`](docs/pilot-season-design-doc.md)
 
 ## Where this is
 
-Stage 1 of the build plan: **the mechanic, playable in one browser**. No rooms,
-no networking, no art yet. The prototype puts the whole room on one screen and
-you act as whoever the turn belongs to, which is enough to exercise spotlight
-rotation, group votes, gated choices and Star-giving.
+Stage 1 of the build plan is done: **the mechanic, playable in one browser**.
+The prototype puts the whole room on one screen and you act as whoever the turn
+belongs to, which is enough to exercise spotlight rotation, group votes, gated
+choices and Star-giving. No networking and no art yet.
+
+Stage 3 has started at the front door: a creator can make a room and get an
+invite code for it. Nobody can join it yet.
 
 | Stage | Status |
 |---|---|
 | 1. Single-browser prototype | done |
 | 2. Character creator | not started |
-| 3. Rooms | not started |
+| 3. Rooms | in progress: a creator gets a room and an invite code |
 | 4. Multiplayer turns | not started |
 | 5. Polish | not started |
 | 6. More stories | not started |
@@ -38,6 +41,7 @@ npm run scenarios  # coverage report: endings, clues, gates
 ```
 src/engine/    the game rules, as a pure reducer
 src/stories/   stories as JSON data
+src/rooms/     rooms and invite codes
 src/app/       the prototype UI
 scripts/       the scenario coverage tool
 ```
@@ -56,6 +60,52 @@ that and its host-handoff problem entirely.
 The UI computes no rules of its own. `sceneView()` returns the resolved text and
 the choices with costs and lock states already worked out, so what a player sees
 locked is exactly what the reducer will refuse.
+
+## Rooms and invite codes
+
+Stage 3, so far the creator's half of it: `/rooms/new` takes a name and a table
+size, mints an invite code, and drops you into `/rooms/CODE` as the host. Joining
+is not built yet.
+
+`src/rooms` keeps the engine's split between a pure core and a thin impure edge:
+
+| | |
+|---|---|
+| `code.ts` | Minting, normalising and validating a code. Pure, with the byte source as an argument. |
+| `room.ts` | Building a room around its creator, and the rules for a name and a table size. Pure. |
+| `store.ts` | Where rooms live. Owns the clock, the randomness, and code *uniqueness*. |
+| `player.ts` | The cookie that makes a player the same player after a reload. |
+
+**The code alphabet has no vowels and no lookalikes** — 22 symbols, `CDFGHJKMNPQRTVWXY34679`.
+Dropping the vowels means a code almost never spells a word, which matters for
+something a group screenshots; dropping `B`/`8`, `S`/`5`, `L`/`1`, `Z`/`2` means
+it survives being read aloud across a room. A short blocklist catches the
+consonant skeletons that still read as something. Codes come from
+`crypto.getRandomValues`, not `Math.random()`, so watching a few go by tells you
+nothing about the next one.
+
+**Four symbols is 234,256 codes.** With a hundred rooms live, a blind guess lands
+in one about every 2,300 tries: fine among friends, where the worst case is a
+stranger watching a story, and not fine for anything public. `CODE_LENGTH` is the
+knob — 6 multiplies the space by 484 — and joining wants rate limiting once there
+is a server to rate limit on.
+
+**Uniqueness belongs to the store, not the generator.** `open()` draws up to
+eight candidates, then widens the code by a character rather than drawing forever
+or failing, and it sweeps expired rooms first so their codes come back. A room
+nobody touches for six hours is gone. A rejected room never consumes a code.
+
+**Codes are matched forgivingly and canonicalised.** `kblt`, `KB LT`, `kb-lt` and
+a pasted `KBLT.` are the same room, and `/rooms/kb-lt` redirects to `/rooms/KBLT`
+so the link that gets passed on is the one the room is stored under. Characters
+*outside* the alphabet are not guessed at: every confusable pair had one member
+removed precisely so there is no sensible guess, and guessing wrong would walk
+someone into another group's game.
+
+The store is a `Map` in the server process, hung off `globalThis` so `next dev`
+does not bin everyone's room on each save. That works for one long-lived server
+and not for serverless; section 10 of the design doc picks the real backend, and
+`RoomStore` is an interface with one implementation so swapping it costs one file.
 
 ## Writing a story
 
