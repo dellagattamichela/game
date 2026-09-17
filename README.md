@@ -15,15 +15,16 @@ The prototype puts the whole room on one screen and you act as whoever the turn
 belongs to, which is enough to exercise spotlight rotation, group votes, gated
 choices and Star-giving. No networking and no art yet.
 
-Stage 3 has the front door working: a creator makes a room and gets an invite
-code, and other people can walk in through it. The story itself is still the
-single-browser prototype — rooms and the engine do not talk to each other yet.
+Stage 3 works end to end: a creator makes a room and gets an invite code, other
+people walk in through it, everyone readies up, the host picks a story and
+starts — and the room hands itself to the engine. What is not built is playing
+that story across devices, which is stage 4.
 
 | Stage | Status |
 |---|---|
 | 1. Single-browser prototype | done |
 | 2. Character creator | not started |
-| 3. Rooms | in progress: create, invite, join, rejoin |
+| 3. Rooms | done: create, invite, join, rejoin, ready, pick, start |
 | 4. Multiplayer turns | not started |
 | 5. Polish | not started |
 | 6. More stories | not started |
@@ -125,7 +126,32 @@ and not for serverless; section 10 of the design doc picks the real backend, and
 
 The lobby polls itself every three seconds so a host can watch people arrive.
 That is a placeholder with a known replacement: stage 4 gives rooms a real-time
-channel, and `lobby-refresh.tsx` goes away with it.
+channel, and `lobby-refresh.tsx` goes away with it. Actions call `refresh()`
+themselves, so your own clicks land immediately rather than on the next tick.
+
+### Where the room meets the engine
+
+`startGame` is the seam the whole build has been pointing at. Everything before
+it is people arriving; everything after it is `applyAction`. The room keeps the
+seats and the identities, and `room.game` holds the story state, built by the
+engine's own `createGame` — so a run started from a room is indistinguishable
+from one the single-browser prototype would have produced.
+
+The run seed comes from the store, not from the engine. `createGame` may not
+roll its own, which is the same rule that makes `{randomPlayer}` resolve to the
+same name on every client.
+
+**One function decides whether Start is allowed.** `startBlocker(room, story)`
+returns either null or the reason, and the lobby renders that reason under the
+greyed-out button while `startGame` enforces it. This is `sceneView`'s rule
+applied to the lobby: one place computes the rule, and the UI never gets to hold
+a second opinion about it.
+
+```
+        ┌──── join ────┐
+create ─┤              ├─ ready ─→ pick ─→ start ─→ room.game
+        └── rejoin ────┘                            (the engine takes over)
+```
 
 ## Writing a story
 

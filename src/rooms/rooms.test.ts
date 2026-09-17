@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { CODE_LENGTH } from "./code";
-import { createRoom, hasSeat, isMember, joinRoom, normalizeName } from "./room";
+import {
+  createRoom,
+  hasSeat,
+  isMember,
+  joinRoom,
+  normalizeName,
+  pickStory,
+  setReady,
+  startBlocker,
+  startGame,
+} from "./room";
 import { createRoomStore } from "./store";
-import { DEFAULT_MAX_PLAYERS, MAX_NAME_LENGTH } from "./types";
+import { DEFAULT_MAX_PLAYERS, MAX_NAME_LENGTH, type Room } from "./types";
+import { requireStory } from "@/stories";
+import type { Story } from "@/engine/types";
 
 const HOST = { id: "host-1", name: "Michela" };
 
@@ -235,6 +247,180 @@ describe("isMember", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// The lobby: ready, story, start
+// ---------------------------------------------------------------------------
+
+/** Small enough to reason about, and independent of what the real stories say. */
+const STORY: Story = {
+  id: "test",
+  title: "Test Story",
+  players: { min: 2, max: 3 },
+  startingStars: 3,
+  start: "s1",
+  scenes: { s1: { text: "{spotlight} begins.", choices: [{ label: "Go" }] } },
+  endings: [{ id: "over", title: "Over" }],
+};
+
+/** A room with `count` players, all seated and all ready unless told otherwise. */
+function seated(count: number, ready = true): Room {
+  const created = createRoom({ code: "MNPQ", host: HOST, maxPlayers: 6, now: 1000 });
+  if (!created.ok) throw new Error("fixture failed");
+
+  let room = created.room;
+  for (let i = 2; i <= count; i++) {
+    const joined = joinRoom({ room, player: { id: `p${i}`, name: `P${i}` }, now: 1000 + i });
+    if (!joined.ok) throw new Error("fixture failed");
+    room = joined.room;
+  }
+
+  return { ...room, players: room.players.map((p) => ({ ...p, ready })) };
+}
+
+describe("setReady", () => {
+  it("flips one player's flag and leaves the rest alone", () => {
+    const room = seated(3, false);
+    const result = setReady(room, "p2", true, 5000);
+
+    expect(result.ok && result.room.players.map((p) => p.ready)).toEqual([false, true, false]);
+    expect(result.ok && result.room.updatedAt).toBe(5000);
+    // The input room is untouched.
+    expect(room.players[1].ready).toBe(false);
+  });
+
+  it("lets the host un-ready themselves, which blocks their own Start", () => {
+    const room = seated(2);
+    const result = setReady(room, HOST.id, false, 5000);
+
+    expect(result.ok && result.room.players[0].ready).toBe(false);
+    expect(result.ok && startBlocker(result.room, STORY)).toMatchObject({
+      code: "not_everyone_ready",
+    });
+  });
+
+  it("refuses someone who is not in the room", () => {
+    expect(setReady(seated(2), "stranger", true, 5000)).toMatchObject({
+      ok: false,
+      code: "not_a_member",
+    });
+  });
+
+  it("refuses once the story is under way", () => {
+    const room = { ...seated(2), status: "playing" as const };
+    expect(setReady(room, "p2", false, 5000)).toMatchObject({
+      ok: false,
+      code: "already_started",
+    });
+  });
+});
+
+describe("pickStory", () => {
+  it("records the host's choice", () => {
+    const result = pickStory(seated(2), HOST.id, STORY, 5000);
+    expect(result.ok && result.room.storyId).toBe("test");
+  });
+
+  it("leaves readiness alone, so the host can browse the list", () => {
+    const result = pickStory(seated(3), HOST.id, STORY, 5000);
+    expect(result.ok && result.room.players.every((p) => p.ready)).toBe(true);
+  });
+
+  it("refuses anyone but the host", () => {
+    expect(pickStory(seated(2), "p2", STORY, 5000)).toMatchObject({
+      ok: false,
+      code: "not_host",
+    });
+  });
+});
+
+describe("startBlocker", () => {
+  it("is null when the room is ready to go", () => {
+    expect(startBlocker({ ...seated(2), storyId: "test" }, STORY)).toBeNull();
+  });
+
+  it("asks for a story first", () => {
+    expect(startBlocker(seated(2), undefined)).toMatchObject({ code: "no_story" });
+  });
+
+  it("names who the room is waiting for", () => {
+    const room = seated(3);
+    const unready = (...ids: string[]) => ({
+      ...room,
+      players: room.players.map((p) => (ids.includes(p.id) ? { ...p, ready: false } : p)),
+    });
+
+    expect(startBlocker(unready("p2"), STORY)?.message).toBe("Waiting for P2.");
+    expect(startBlocker(unready("p2", "p3"), STORY)?.message).toBe("Waiting for P2 and P3.");
+    expect(startBlocker(unready(HOST.id, "p2", "p3"), STORY)?.message).toBe(
+      "Waiting for Michela, P2 and P3.",
+    );
+  });
+
+  it("refuses a room the story is not written for", () => {
+    expect(startBlocker(seated(1), STORY)).toMatchObject({
+      code: "wrong_player_count",
+      message: "Test Story needs at least 2 players.",
+    });
+    expect(startBlocker(seated(4), STORY)).toMatchObject({
+      code: "wrong_player_count",
+      message: "Test Story takes at most 3 players.",
+    });
+  });
+
+  it("says the game is already under way once it is", () => {
+    expect(startBlocker({ ...seated(2), status: "playing" }, STORY)).toMatchObject({
+      code: "already_started",
+    });
+  });
+});
+
+describe("startGame", () => {
+  const ready = () => ({ ...seated(2), storyId: "test" });
+
+  it("hands the room to the engine", () => {
+    const room = ready();
+    const result = startGame({ room, playerId: HOST.id, story: STORY, seed: 42, now: 5000 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.room.status).toBe("playing");
+    expect(result.room.game).toMatchObject({
+      storyId: "test",
+      phase: "scene",
+      sceneId: "s1",
+      spotlightIndex: 0,
+      seed: 42,
+    });
+    // Seats become players, in seat order, with the story's opening Stars.
+    expect(result.room.game?.players).toEqual([
+      { id: HOST.id, name: "Michela", stars: 3 },
+      { id: "p2", name: "P2", stars: 3 },
+    ]);
+  });
+
+  it("does not touch the room it was given", () => {
+    const room = ready();
+    startGame({ room, playerId: HOST.id, story: STORY, seed: 42, now: 5000 });
+    expect(room.status).toBe("lobby");
+    expect(room.game).toBeNull();
+  });
+
+  it("refuses anyone but the host", () => {
+    expect(
+      startGame({ room: ready(), playerId: "p2", story: STORY, seed: 42, now: 5000 }),
+    ).toMatchObject({ ok: false, code: "not_host" });
+  });
+
+  it("refuses for the same reasons the lobby shows under the button", () => {
+    const room = seated(2, false);
+    const result = startGame({ room, playerId: HOST.id, story: STORY, seed: 42, now: 5000 });
+
+    expect(result).toMatchObject({ ok: false, code: "not_everyone_ready" });
+    expect(result.ok === false && result.message).toBe(startBlocker(room, STORY)?.message);
+  });
+});
+
 describe("the store", () => {
   it("mints a code for a new room and finds the room by it", () => {
     const store = createRoomStore();
@@ -383,6 +569,58 @@ describe("the store", () => {
 
     expect(store.find("MNPQ")).toBeDefined();
   });
+
+
+  it("carries a room from an empty lobby to a running game", () => {
+    const story = requireStory("the-pilot");
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ"), seed: () => 7 });
+
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.join("MNPQ", { playerId: "p2", name: "Bo" });
+    expect(store.ready("MNPQ", "p2", true)).toMatchObject({ ok: true });
+    expect(store.chooseStory("MNPQ", "h", "the-pilot")).toMatchObject({ ok: true });
+
+    const started = store.start("MNPQ", "h");
+
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    expect(started.room.status).toBe("playing");
+    expect(started.room.game).toMatchObject({ storyId: "the-pilot", sceneId: story.start, seed: 7 });
+    // And the room the next request reads is the started one.
+    expect(store.find("MNPQ")?.game?.seed).toBe(7);
+  });
+
+  it("refuses a story the registry does not know, and keeps the old choice", () => {
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ") });
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.chooseStory("MNPQ", "h", "the-pilot");
+
+    expect(store.chooseStory("MNPQ", "h", "the-sleepover")).toMatchObject({
+      ok: false,
+      code: "unknown_story",
+    });
+    expect(store.find("MNPQ")?.storyId).toBe("the-pilot");
+  });
+
+  it("will not start a room that is not ready, and leaves it in the lobby", () => {
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ") });
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.join("MNPQ", { playerId: "p2", name: "Bo" });
+    store.chooseStory("MNPQ", "h", "the-pilot");
+
+    expect(store.start("MNPQ", "h")).toMatchObject({ ok: false, code: "not_everyone_ready" });
+    expect(store.find("MNPQ")?.status).toBe("lobby");
+    expect(store.find("MNPQ")?.game).toBeNull();
+  });
+
+  it("answers room_not_found for every lobby action on a dead code", () => {
+    const store = createRoomStore();
+
+    expect(store.ready("MNPQ", "h", true)).toMatchObject({ code: "room_not_found" });
+    expect(store.chooseStory("MNPQ", "h", "the-pilot")).toMatchObject({ code: "room_not_found" });
+    expect(store.start("MNPQ", "h")).toMatchObject({ code: "room_not_found" });
+  });
+
 
   it("closes a room on request", () => {
     const store = createRoomStore({ generate: scriptedCodes("MNPQ") });

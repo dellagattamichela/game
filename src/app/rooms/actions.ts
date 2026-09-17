@@ -9,6 +9,7 @@
  * Action is reachable by a direct POST, not only through the form, so the host
  * id comes from the cookie rather than from a field anyone could set.
  */
+import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { PLAYER_COOKIE, PLAYER_COOKIE_MAX_AGE, newPlayerId } from "@/rooms/player";
@@ -87,4 +88,69 @@ export async function joinRoomAction(
   });
 
   redirect(`/rooms/${result.room.code}`);
+}
+
+/**
+ * The three lobby controls share a shape: they act on the room in the URL, on
+ * behalf of whoever the cookie says you are, and they either change something
+ * or come back with a sentence explaining why not.
+ */
+export type LobbyState = { error: string | null };
+
+/** Who the browser claims to be. Null when it has never been anywhere. */
+async function currentPlayerId(): Promise<string | null> {
+  return (await cookies()).get(PLAYER_COOKIE)?.value ?? null;
+}
+
+const NOT_YOU: LobbyState = { error: "This browser is not in that room." };
+
+export async function setReadyAction(
+  _previous: LobbyState,
+  formData: FormData,
+): Promise<LobbyState> {
+  const playerId = await currentPlayerId();
+  if (!playerId) return NOT_YOU;
+
+  const code = String(formData.get("code") ?? "");
+  const ready = formData.get("ready") === "true";
+
+  const result = rooms.ready(code, playerId, ready);
+  if (!result.ok) return { error: result.message };
+
+  // The lobby already polls, but waiting up to three seconds to see your own
+  // button change state would feel broken. This re-renders it immediately.
+  refresh();
+  return { error: null };
+}
+
+export async function chooseStoryAction(
+  _previous: LobbyState,
+  formData: FormData,
+): Promise<LobbyState> {
+  const playerId = await currentPlayerId();
+  if (!playerId) return NOT_YOU;
+
+  const result = rooms.chooseStory(
+    String(formData.get("code") ?? ""),
+    playerId,
+    String(formData.get("storyId") ?? ""),
+  );
+  if (!result.ok) return { error: result.message };
+
+  refresh();
+  return { error: null };
+}
+
+export async function startGameAction(
+  _previous: LobbyState,
+  formData: FormData,
+): Promise<LobbyState> {
+  const playerId = await currentPlayerId();
+  if (!playerId) return NOT_YOU;
+
+  const result = rooms.start(String(formData.get("code") ?? ""), playerId);
+  if (!result.ok) return { error: result.message };
+
+  refresh();
+  return { error: null };
 }

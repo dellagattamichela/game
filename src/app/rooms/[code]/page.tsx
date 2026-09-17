@@ -14,11 +14,20 @@ import { notFound, redirect } from "next/navigation";
 import { InviteCode } from "../_components/invite-code";
 import { JoinRoomForm } from "../_components/join-room-form";
 import { LobbyRefresh } from "../_components/lobby-refresh";
+import {
+  ReadyToggle,
+  StartButton,
+  StoryPicker,
+  type StoryCard,
+} from "../_components/lobby-controls";
+import { sceneView } from "@/engine/engine";
+import type { Story } from "@/engine/types";
 import { normalizeCode } from "@/rooms/code";
 import { PLAYER_COOKIE } from "@/rooms/player";
-import { hasSeat, isMember } from "@/rooms/room";
+import { hasSeat, isMember, startBlocker } from "@/rooms/room";
 import { rooms } from "@/rooms/store";
 import type { Room } from "@/rooms/types";
+import { STORIES, getStory } from "@/stories";
 
 export const metadata: Metadata = {
   title: "Lobby · Pilot Season",
@@ -42,22 +51,42 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
 
   const link = `${await requestOrigin()}/rooms/${room.code}`;
   const isHost = playerId === room.hostId;
+  const me = room.players.find((p) => p.id === playerId);
+  const story = room.storyId ? getStory(room.storyId) : undefined;
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-6 p-6">
       <LobbyRefresh />
-      <h1 className="text-2xl font-bold">Lobby</h1>
+      <h1 className="text-2xl font-bold">{room.status === "lobby" ? "Lobby" : story?.title}</h1>
 
-      <InviteCode code={room.code} link={link} />
+      {room.status === "lobby" ? <InviteCode code={room.code} link={link} /> : null}
 
       <Roster room={room} playerId={playerId} />
 
-      <p className="text-sm opacity-70">
-        {isHost
-          ? "You are the host: you pick the story and start the game."
-          : "The host picks the story and starts the game."}{" "}
-        The story picker and the game itself are not wired to rooms yet.
-      </p>
+      {room.status === "lobby" ? (
+        <>
+          {me ? <ReadyToggle code={room.code} ready={me.ready} /> : null}
+
+          {isHost ? (
+            <StoryPicker code={room.code} stories={STORY_CARDS} chosenId={room.storyId} />
+          ) : (
+            <p className="text-sm opacity-70">
+              {story
+                ? `The host picked ${story.title}.`
+                : "The host is choosing a story."}
+            </p>
+          )}
+
+          {isHost ? (
+            <StartButton
+              code={room.code}
+              blockedBecause={startBlocker(room, story)?.message ?? null}
+            />
+          ) : null}
+        </>
+      ) : (
+        <Opening room={room} story={story} />
+      )}
 
       <Link href="/" className="text-sm underline opacity-70">
         Back to the single-browser prototype
@@ -65,6 +94,61 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
     </main>
   );
 }
+
+/**
+ * Proof that the room and the engine are now the same run: the opening scene,
+ * rendered from `room.game` through the engine's own `sceneView`.
+ *
+ * Read-only on purpose. Playing a story across devices — dispatching actions,
+ * votes, Star gifts — is stage 4, and the point of stopping here is that the
+ * handover works before anything is built on top of it.
+ */
+function Opening({ room, story }: { room: Room; story: Story | undefined }) {
+  if (!story || !room.game) return null;
+
+  const view = sceneView(story, room.game);
+
+  return (
+    <section className="flex flex-col gap-2 border-2 p-4">
+      <p className="text-xs uppercase tracking-wide opacity-60">
+        Scene {view.sceneId} · {view.spotlight.name} is in the spotlight
+      </p>
+      <p>{view.text}</p>
+      <ul className="flex flex-col gap-1 text-sm opacity-70">
+        {view.choices
+          .filter((choice) => !choice.hidden)
+          .map((choice) => (
+            <li key={choice.index} className="border px-2 py-1">
+              {choice.label}
+              {choice.cost > 0 ? ` · ${choice.cost} ⭐` : ""}
+            </li>
+          ))}
+      </ul>
+      <p className="text-sm opacity-60">
+        Everyone starts with {story.startingStars} ⭐. Playing a story across
+        devices is stage 4 — for now the run lives in the room, unplayed.
+      </p>
+    </section>
+  );
+}
+
+/**
+ * The story list, flattened to what the picker draws. Built here so the client
+ * bundle never has to import the registry and the story files behind it.
+ */
+const STORY_CARDS: StoryCard[] = STORIES.map((story) => ({
+  id: story.id,
+  title: story.title,
+  hook: story.hook,
+  detail: [
+    `${Object.keys(story.scenes).length} scenes`,
+    story.clues ? `${Object.keys(story.clues).length} clues` : null,
+    `${story.endings.length} endings`,
+    `${story.players.min}–${story.players.max} players`,
+  ]
+    .filter(Boolean)
+    .join(" · "),
+}));
 
 /** What someone who followed the invite link sees before they have a seat. */
 function Door({ room }: { room: Room }) {

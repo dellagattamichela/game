@@ -6,6 +6,8 @@
  * are arguments, which is what lets the tests assert on an exact room object
  * and what will let a server route handler call this inside a transaction.
  */
+import { createGame } from "@/engine/engine";
+import type { Story } from "@/engine/types";
 import { isValidCode } from "./code";
 import {
   MAX_NAME_LENGTH,
@@ -13,6 +15,7 @@ import {
   MIN_ROOM_PLAYERS,
   type Room,
   type RoomPlayer,
+  type RoomRejectionCode,
   type RoomResult,
 } from "./types";
 
@@ -194,4 +197,148 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
 /** True if this player already holds a seat — the lobby renders on this. */
 export function isMember(room: Room, playerId: string | null): boolean {
   return playerId !== null && room.players.some((p) => p.id === playerId);
+}
+
+// ---------------------------------------------------------------------------
+// The lobby: getting ready, picking a story, and starting
+// ---------------------------------------------------------------------------
+
+/** "Bo", "Bo and Cy", "Bo, Cy and Di" — for messages people read. */
+function listNames(players: RoomPlayer[]): string {
+  const names = players.map((p) => p.name);
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** Ready up, or take it back. Anyone may do this for themselves, host included. */
+export function setReady(
+  room: Room,
+  playerId: string,
+  ready: boolean,
+  now: number,
+): RoomResult {
+  if (!isMember(room, playerId)) {
+    return { ok: false, code: "not_a_member", message: "You are not in this room." };
+  }
+  if (room.status !== "lobby") {
+    return { ok: false, code: "already_started", message: "This game has already started." };
+  }
+
+  return {
+    ok: true,
+    room: {
+      ...room,
+      players: room.players.map((p) => (p.id === playerId ? { ...p, ready } : p)),
+      updatedAt: now,
+    },
+  };
+}
+
+/**
+ * The host chooses what the room is going to play.
+ *
+ * Takes the resolved `Story` rather than an id so that this stays pure and the
+ * caller owns the registry lookup — and so a story that does not exist is
+ * refused one layer out, where the registry lives, instead of being stored and
+ * blowing up at `Start`.
+ *
+ * Readiness is deliberately not reset when the host switches story. People ready
+ * up to say "I am here and paying attention", not to approve a particular story,
+ * and un-readying the room every time the host browses the list would make the
+ * list unbrowsable.
+ */
+export function pickStory(room: Room, playerId: string, story: Story, now: number): RoomResult {
+  if (room.hostId !== playerId) {
+    return { ok: false, code: "not_host", message: "Only the host picks the story." };
+  }
+  if (room.status !== "lobby") {
+    return { ok: false, code: "already_started", message: "This game has already started." };
+  }
+
+  return { ok: true, room: { ...room, storyId: story.id, updatedAt: now } };
+}
+
+/**
+ * Why this room cannot start yet, ready to display, or null if it can.
+ *
+ * The lobby renders this and `startGame` enforces it, so the reason under a
+ * greyed-out button is the same sentence the action would have rejected with.
+ * The engine does the same thing with `sceneView`: one place computes the rule,
+ * and the UI never gets to hold a second opinion.
+ */
+export function startBlocker(
+  room: Room,
+  story: Story | undefined,
+): { code: RoomRejectionCode; message: string } | null {
+  if (room.status !== "lobby") {
+    return { code: "already_started", message: "This game has already started." };
+  }
+  if (!story) {
+    return { code: "no_story", message: "Pick a story first." };
+  }
+
+  const waitingOn = room.players.filter((p) => !p.ready);
+  if (waitingOn.length > 0) {
+    return { code: "not_everyone_ready", message: `Waiting for ${listNames(waitingOn)}.` };
+  }
+
+  if (room.players.length < story.players.min) {
+    return {
+      code: "wrong_player_count",
+      message: `${story.title} needs at least ${story.players.min} players.`,
+    };
+  }
+  if (room.players.length > story.players.max) {
+    return {
+      code: "wrong_player_count",
+      message: `${story.title} takes at most ${story.players.max} players.`,
+    };
+  }
+
+  return null;
+}
+
+export type StartGameInput = {
+  room: Room;
+  playerId: string;
+  /** The story `room.storyId` resolves to. Undefined when none was picked. */
+  story: Story | undefined;
+  /** From `newSeed()` at the impure edge: the engine may not roll its own. */
+  seed: number;
+  now: number;
+};
+
+/**
+ * Hand the room over to the engine.
+ *
+ * This is the seam the whole build has been pointing at: everything before it
+ * is people arriving, everything after it is `applyAction`. The room keeps the
+ * seats and the identities; `room.game` holds the story state, built by the
+ * engine's own `createGame` so a room's run is indistinguishable from one the
+ * single-browser prototype would have produced.
+ */
+export function startGame({ room, playerId, story, seed, now }: StartGameInput): RoomResult {
+  if (room.hostId !== playerId) {
+    return { ok: false, code: "not_host", message: "Only the host can start the game." };
+  }
+
+  const blocker = startBlocker(room, story);
+  if (blocker) return { ok: false, ...blocker };
+  // startBlocker has already refused a missing story; this narrows the type.
+  if (!story) throw new Error("unreachable: startBlocker allows no story-less start");
+
+  return {
+    ok: true,
+    room: {
+      ...room,
+      status: "playing",
+      storyId: story.id,
+      game: createGame(
+        story,
+        room.players.map((p) => ({ id: p.id, name: p.name })),
+        seed,
+      ),
+      updatedAt: now,
+    },
+  };
 }

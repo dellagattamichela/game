@@ -15,8 +15,10 @@
  * swapping it costs one file, and that `createRoomStore` can be handed a fake
  * clock and fake bytes in tests.
  */
+import { newSeed } from "@/engine/rng";
+import { getStory } from "@/stories";
 import { CODE_LENGTH, MAX_CODE_LENGTH, generateCode, normalizeCode } from "./code";
-import { createRoom, joinRoom } from "./room";
+import { createRoom, joinRoom, pickStory, setReady, startGame } from "./room";
 import { DEFAULT_MAX_PLAYERS, type Room, type RoomResult } from "./types";
 
 /** A room nobody has touched for this long is gone. Long enough to outlive a session. */
@@ -49,6 +51,12 @@ export type RoomStore = {
   open(input: OpenRoomInput): RoomResult;
   /** Seat a player in the room a code points at, or give them their seat back. */
   join(code: string, input: JoinRoomStoreInput): RoomResult;
+  /** A player marks themselves ready, or takes it back. */
+  ready(code: string, playerId: string, ready: boolean): RoomResult;
+  /** The host chooses the story. Refuses an id the registry does not know. */
+  chooseStory(code: string, playerId: string, storyId: string): RoomResult;
+  /** The host starts: the room hands itself to the engine. */
+  start(code: string, playerId: string): RoomResult;
   /** Look a room up by whatever the player typed. Expired rooms read as missing. */
   find(code: string): Room | undefined;
   /** Write a changed room back. Stamps `updatedAt`, which is what keeps it alive. */
@@ -65,12 +73,15 @@ export type RoomStoreOptions = {
   now?: () => number;
   /** Injectable so a test can force a collision. */
   generate?: (length: number) => string;
+  /** The run seed handed to `createGame`. Injectable so a test can pin a run. */
+  seed?: () => number;
   ttlMs?: number;
 };
 
 export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
   const now = options.now ?? Date.now;
   const generate = options.generate ?? ((length: number) => generateCode(length));
+  const seed = options.seed ?? newSeed;
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
 
   const rooms = new Map<string, Room>();
@@ -107,6 +118,21 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
     return rooms.get(normalizeCode(code));
   }
 
+  /**
+   * A mistyped code and an expired room are the same answer on purpose: there
+   * is nothing useful to tell apart, and "that code was real once" is not
+   * information a stranger needs.
+   */
+  function notFound(): RoomResult {
+    return { ok: false, code: "room_not_found", message: "No room answers to that code." };
+  }
+
+  /** Store the result of a pure mutation, or pass its rejection straight back. */
+  function commit(result: RoomResult): RoomResult {
+    if (result.ok) rooms.set(result.room.code, result.room);
+    return result;
+  }
+
   return {
     open({ hostId, hostName, maxPlayers = DEFAULT_MAX_PLAYERS }) {
       // Expired rooms still hold their codes hostage until they are swept, so
@@ -137,18 +163,38 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
 
     join(code, { playerId, name }) {
       const room = find(code);
-      if (!room) {
-        // A mistyped code and an expired room are the same answer on purpose:
-        // there is nothing useful to tell apart, and "that code was real once"
-        // is not information a stranger needs.
-        return { ok: false, code: "room_not_found", message: "No room answers to that code." };
+      if (!room) return notFound();
+
+      return commit(joinRoom({ room, player: { id: playerId, name }, now: now() }));
+    },
+
+    ready(code, playerId, ready) {
+      const room = find(code);
+      if (!room) return notFound();
+      return commit(setReady(room, playerId, ready, now()));
+    },
+
+    chooseStory(code, playerId, storyId) {
+      const room = find(code);
+      if (!room) return notFound();
+
+      const story = getStory(storyId);
+      if (!story) {
+        return { ok: false, code: "unknown_story", message: `No story called "${storyId}".` };
       }
 
-      const result = joinRoom({ room, player: { id: playerId, name }, now: now() });
-      if (!result.ok) return result;
+      return commit(pickStory(room, playerId, story, now()));
+    },
 
-      rooms.set(result.room.code, result.room);
-      return result;
+    start(code, playerId) {
+      const room = find(code);
+      if (!room) return notFound();
+
+      // A null storyId resolves to undefined, which startGame refuses with the
+      // same message the lobby has been showing under the disabled button.
+      const story = room.storyId ? getStory(room.storyId) : undefined;
+
+      return commit(startGame({ room, playerId, story, seed: seed(), now: now() }));
     },
 
     find,

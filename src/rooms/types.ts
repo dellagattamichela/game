@@ -71,7 +71,17 @@ export type RoomRejectionCode =
    * silently suffixed, because scene text resolves `{spotlight}` to a name and
    * two Sams make the story itself ambiguous.
    */
-  | "name_taken";
+  | "name_taken"
+  /** The player is not sitting in this room, so has nothing to change in it. */
+  | "not_a_member"
+  /** Picking the story and starting belong to the host alone. */
+  | "not_host"
+  | "unknown_story"
+  /** Asked to start before a story was picked. */
+  | "no_story"
+  | "not_everyone_ready"
+  /** The room holds more or fewer people than the chosen story is written for. */
+  | "wrong_player_count";
 
 /**
  * Mirrors the engine's `ActionResult`: a typed rejection rather than a throw,
