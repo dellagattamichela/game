@@ -60,7 +60,18 @@ export type RoomRejectionCode =
   | "invalid_max_players"
   | "invalid_code"
   /** Every candidate code we drew was already taken. Effectively "we are full of rooms". */
-  | "code_unavailable";
+  | "code_unavailable"
+  /** No live room answers to that code — a typo, or a room that has expired. */
+  | "room_not_found"
+  | "room_full"
+  /** The story is under way. Does not apply to someone reclaiming their own seat. */
+  | "already_started"
+  /**
+   * Someone in the room already goes by that name. Rejected rather than
+   * silently suffixed, because scene text resolves `{spotlight}` to a name and
+   * two Sams make the story itself ambiguous.
+   */
+  | "name_taken";
 
 /**
  * Mirrors the engine's `ActionResult`: a typed rejection rather than a throw,

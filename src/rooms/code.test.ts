@@ -64,11 +64,16 @@ describe("generateCode", () => {
     }
   });
 
-  it("never returns the same code twice in a realistic run", () => {
+  it("draws are overwhelmingly distinct, but not guaranteed to be", () => {
     const seen = new Set<string>();
     for (let i = 0; i < 500; i++) seen.add(generateCode());
-    // 500 draws from 234k codes: a collision here would mean the source is broken.
-    expect(seen.size).toBe(500);
+
+    // Birthday problem: 500 draws from 234,256 codes collide about 41% of the
+    // time, so asserting 500 distinct codes here would be a flaky test AND a
+    // false claim. Uniqueness is the store's job, not the generator's — see
+    // "never hands the same code to two live rooms" in rooms.test.ts. What is
+    // worth asserting is that the source is not stuck or badly skewed.
+    expect(seen.size).toBeGreaterThan(490);
   });
 
   it("redraws a code that reads as a word", () => {

@@ -16,7 +16,7 @@
  * clock and fake bytes in tests.
  */
 import { CODE_LENGTH, MAX_CODE_LENGTH, generateCode, normalizeCode } from "./code";
-import { createRoom } from "./room";
+import { createRoom, joinRoom } from "./room";
 import { DEFAULT_MAX_PLAYERS, type Room, type RoomResult } from "./types";
 
 /** A room nobody has touched for this long is gone. Long enough to outlive a session. */
@@ -38,9 +38,17 @@ export type OpenRoomInput = {
   maxPlayers?: number;
 };
 
+export type JoinRoomStoreInput = {
+  /** The joiner's saved player id. Comes from their cookie, not from the form. */
+  playerId: string;
+  name: string;
+};
+
 export type RoomStore = {
   /** Create a room around its host and mint the invite code that points at it. */
   open(input: OpenRoomInput): RoomResult;
+  /** Seat a player in the room a code points at, or give them their seat back. */
+  join(code: string, input: JoinRoomStoreInput): RoomResult;
   /** Look a room up by whatever the player typed. Expired rooms read as missing. */
   find(code: string): Room | undefined;
   /** Write a changed room back. Stamps `updatedAt`, which is what keeps it alive. */
@@ -94,6 +102,11 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
     return null;
   }
 
+  function find(code: string): Room | undefined {
+    sweep();
+    return rooms.get(normalizeCode(code));
+  }
+
   return {
     open({ hostId, hostName, maxPlayers = DEFAULT_MAX_PLAYERS }) {
       // Expired rooms still hold their codes hostage until they are swept, so
@@ -122,10 +135,23 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
       return result;
     },
 
-    find(code) {
-      sweep();
-      return rooms.get(normalizeCode(code));
+    join(code, { playerId, name }) {
+      const room = find(code);
+      if (!room) {
+        // A mistyped code and an expired room are the same answer on purpose:
+        // there is nothing useful to tell apart, and "that code was real once"
+        // is not information a stranger needs.
+        return { ok: false, code: "room_not_found", message: "No room answers to that code." };
+      }
+
+      const result = joinRoom({ room, player: { id: playerId, name }, now: now() });
+      if (!result.ok) return result;
+
+      rooms.set(result.room.code, result.room);
+      return result;
     },
+
+    find,
 
     save(room) {
       const saved = { ...room, updatedAt: now() };

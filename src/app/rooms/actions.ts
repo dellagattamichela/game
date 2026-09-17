@@ -52,3 +52,39 @@ export async function createRoomAction(
   // Throws a control-flow exception, so nothing below runs.
   redirect(`/rooms/${result.room.code}`);
 }
+
+export type JoinRoomState = {
+  error: string | null;
+  values: { code: string; name: string };
+};
+
+/**
+ * The other side of the invite code: turn one into a seat.
+ *
+ * Same boundary rules as creating. The player id comes from the cookie, so a
+ * player who reloads, closes the tab, or loses their wifi comes back as
+ * themselves — the store decides whether that is a join or a reconnect.
+ */
+export async function joinRoomAction(
+  _previous: JoinRoomState,
+  formData: FormData,
+): Promise<JoinRoomState> {
+  const code = String(formData.get("code") ?? "");
+  const name = String(formData.get("name") ?? "");
+  const values = { code, name };
+
+  const jar = await cookies();
+  const playerId = jar.get(PLAYER_COOKIE)?.value ?? newPlayerId();
+
+  const result = rooms.join(code, { playerId, name });
+  if (!result.ok) return { error: result.message, values };
+
+  jar.set(PLAYER_COOKIE, playerId, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: PLAYER_COOKIE_MAX_AGE,
+  });
+
+  redirect(`/rooms/${result.room.code}`);
+}

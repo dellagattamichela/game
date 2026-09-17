@@ -215,9 +215,16 @@ function Setup({
         </button>
       </div>
 
-      <Link href="/rooms/new" className="text-sm underline opacity-70">
-        Or create a room with an invite code (stage 3, in progress)
-      </Link>
+      <p className="text-sm opacity-70">
+        Or play it with other devices (stage 3, in progress):{" "}
+        <Link href="/rooms/new" className="underline">
+          create a room
+        </Link>{" "}
+        ·{" "}
+        <Link href="/join" className="underline">
+          join one
+        </Link>
+      </p>
     </main>
   );
 }

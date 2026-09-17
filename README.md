@@ -15,14 +15,15 @@ The prototype puts the whole room on one screen and you act as whoever the turn
 belongs to, which is enough to exercise spotlight rotation, group votes, gated
 choices and Star-giving. No networking and no art yet.
 
-Stage 3 has started at the front door: a creator can make a room and get an
-invite code for it. Nobody can join it yet.
+Stage 3 has the front door working: a creator makes a room and gets an invite
+code, and other people can walk in through it. The story itself is still the
+single-browser prototype — rooms and the engine do not talk to each other yet.
 
 | Stage | Status |
 |---|---|
 | 1. Single-browser prototype | done |
 | 2. Character creator | not started |
-| 3. Rooms | in progress: a creator gets a room and an invite code |
+| 3. Rooms | in progress: create, invite, join, rejoin |
 | 4. Multiplayer turns | not started |
 | 5. Polish | not started |
 | 6. More stories | not started |
@@ -63,16 +64,19 @@ locked is exactly what the reducer will refuse.
 
 ## Rooms and invite codes
 
-Stage 3, so far the creator's half of it: `/rooms/new` takes a name and a table
-size, mints an invite code, and drops you into `/rooms/CODE` as the host. Joining
-is not built yet.
+`/rooms/new` takes a name and a table size, mints an invite code, and drops you
+into `/rooms/CODE` as the host. Everyone else arrives either by typing the code
+at `/join` or by following the link, which is the same `/rooms/CODE` URL: what
+you get there depends on whether your cookie already holds a seat in that room.
+A member sees the lobby, anyone else sees the door with a name field. So the
+link a host pastes into a chat does the whole job on its own.
 
 `src/rooms` keeps the engine's split between a pure core and a thin impure edge:
 
 | | |
 |---|---|
 | `code.ts` | Minting, normalising and validating a code. Pure, with the byte source as an argument. |
-| `room.ts` | Building a room around its creator, and the rules for a name and a table size. Pure. |
+| `room.ts` | Building a room around its creator, seating the people who join, and the rules for both. Pure. |
 | `store.ts` | Where rooms live. Owns the clock, the randomness, and code *uniqueness*. |
 | `player.ts` | The cookie that makes a player the same player after a reload. |
 
@@ -102,10 +106,26 @@ so the link that gets passed on is the one the room is stored under. Characters
 removed precisely so there is no sensible guess, and guessing wrong would walk
 someone into another group's game.
 
+**Joining and reconnecting are the same call.** From a player's side, "let me
+in" and "my wifi dropped" are one action, and the client cannot tell them apart
+— it sends the id its browser has been carrying since the first time it saw the
+game. `joinRoom` decides which it was by whether that id is already at the
+table, which is why the membership check runs *before* the checks for space and
+for whether the story has started: a full game must still let its own players
+back in, and checking capacity first would lock them out of their own session.
+
+**A name the room already uses is refused, not silently suffixed.** Scene text
+resolves `{spotlight}` to a name, so two Sams make the story itself ambiguous;
+better to say so than to rename someone behind their back.
+
 The store is a `Map` in the server process, hung off `globalThis` so `next dev`
 does not bin everyone's room on each save. That works for one long-lived server
 and not for serverless; section 10 of the design doc picks the real backend, and
 `RoomStore` is an interface with one implementation so swapping it costs one file.
+
+The lobby polls itself every three seconds so a host can watch people arrive.
+That is a placeholder with a known replacement: stage 4 gives rooms a real-time
+channel, and `lobby-refresh.tsx` goes away with it.
 
 ## Writing a story
 

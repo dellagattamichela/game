@@ -93,3 +93,105 @@ export function createRoom({ code, host, maxPlayers, now }: CreateRoomInput): Ro
 export function hasSeat(room: Room): boolean {
   return room.status === "lobby" && room.players.length < room.maxPlayers;
 }
+
+/**
+ * Whether a name is already spoken for, ignoring case and ignoring one seat.
+ *
+ * `exceptId` is how a rejoining player keeps their own name: without it,
+ * everyone would collide with themselves the moment they reconnected.
+ */
+function nameTaken(room: Room, name: string, exceptId?: string): boolean {
+  const wanted = name.toLowerCase();
+  return room.players.some((p) => p.id !== exceptId && p.name.toLowerCase() === wanted);
+}
+
+export type JoinRoomInput = {
+  room: Room;
+  player: { id: string; name: string };
+  now: number;
+};
+
+/**
+ * Put a player in the room, or put them back in the seat they already had.
+ *
+ * The two cases are one function on purpose: from a player's side, "join" and
+ * "my wifi dropped and I came back" are the same action, and the client cannot
+ * reliably tell them apart — it just sends the id its browser has been carrying
+ * since the first time it saw the game. Which one it turns out to be is decided
+ * here, by whether that id is already sitting at the table.
+ *
+ * So the membership check comes first, before the room is checked for space or
+ * for whether the story has started. A full room that has begun playing must
+ * still let its own players back in, and checking capacity first would lock
+ * them out of their own game.
+ */
+export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
+  const name = normalizeName(player.name);
+  if (name.length === 0) {
+    return { ok: false, code: "invalid_name", message: "Pick a name so the room knows who you are." };
+  }
+
+  const seat = room.players.find((p) => p.id === player.id);
+
+  if (seat) {
+    // Coming back. The name is refreshed because a player may have changed it
+    // on the way in, which means it can collide like any other name.
+    if (nameTaken(room, name, player.id)) {
+      return { ok: false, code: "name_taken", message: `Someone here is already called ${name}.` };
+    }
+    return {
+      ok: true,
+      room: {
+        ...room,
+        players: room.players.map((p) =>
+          p.id === player.id ? { ...p, name, connected: true } : p,
+        ),
+        updatedAt: now,
+      },
+    };
+  }
+
+  if (room.status !== "lobby") {
+    return {
+      ok: false,
+      code: "already_started",
+      message:
+        room.status === "ended"
+          ? "This game has already finished."
+          : "This game has already started.",
+    };
+  }
+
+  if (room.players.length >= room.maxPlayers) {
+    return {
+      ok: false,
+      code: "room_full",
+      message: `This room is full, ${room.players.length} of ${room.maxPlayers} players.`,
+    };
+  }
+
+  if (nameTaken(room, name)) {
+    return { ok: false, code: "name_taken", message: `Someone here is already called ${name}.` };
+  }
+
+  const joined: RoomPlayer = {
+    id: player.id,
+    name,
+    isHost: false,
+    // Unlike the host, a joiner has a character to build and a story to read
+    // about first, so they start not ready and say so themselves.
+    ready: false,
+    connected: true,
+    joinedAt: now,
+  };
+
+  return {
+    ok: true,
+    room: { ...room, players: [...room.players, joined], updatedAt: now },
+  };
+}
+
+/** True if this player already holds a seat — the lobby renders on this. */
+export function isMember(room: Room, playerId: string | null): boolean {
+  return playerId !== null && room.players.some((p) => p.id === playerId);
+}
