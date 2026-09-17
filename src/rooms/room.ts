@@ -14,10 +14,14 @@ import type { Story } from "@/engine/types";
 import { isValidCode } from "./code";
 import {
   MAX_NAME_LENGTH,
+  DEFAULT_TURN_TIMER,
   MAX_ROOM_PLAYERS,
   MIN_ROOM_PLAYERS,
+  PRESENCE_TIMEOUT_MS,
+  TURN_TIMERS,
   type Room,
   type RoomPlayer,
+  type TurnTimer,
   type RoomRejectionCode,
   type RoomResult,
 } from "./types";
@@ -79,6 +83,7 @@ export function createRoom({ code, host, maxPlayers, now }: CreateRoomInput): Ro
     ready: true,
     connected: true,
     joinedAt: now,
+    lastSeen: now,
   };
 
   const room: Room = {
@@ -91,6 +96,8 @@ export function createRoom({ code, host, maxPlayers, now }: CreateRoomInput): Ro
     createdAt: now,
     updatedAt: now,
     game: null,
+    turnTimer: DEFAULT_TURN_TIMER,
+    turnEndsAt: null,
   };
 
   return { ok: true, room };
@@ -151,7 +158,7 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
       room: {
         ...room,
         players: room.players.map((p) =>
-          p.id === player.id ? { ...p, name, connected: true } : p,
+          p.id === player.id ? { ...p, name, connected: true, lastSeen: now } : p,
         ),
         updatedAt: now,
       },
@@ -191,6 +198,7 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
     ready: false,
     connected: true,
     joinedAt: now,
+    lastSeen: now,
   };
 
   return {
@@ -383,5 +391,115 @@ export function setCharacter(
       players: room.players.map((p) => (p.id === playerId ? { ...p, character: dressed } : p)),
       updatedAt: now,
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 5: the turn clock and who is still in the room
+// ---------------------------------------------------------------------------
+
+/** The host chooses how long a decision may take. Off, a minute, or ninety seconds. */
+export function setTurnTimer(
+  room: Room,
+  playerId: string,
+  seconds: number,
+  now: number,
+): RoomResult {
+  if (room.hostId !== playerId) {
+    return { ok: false, code: "not_host", message: "Only the host sets the turn timer." };
+  }
+  if (!TURN_TIMERS.includes(seconds as TurnTimer)) {
+    return { ok: false, code: "invalid_timer", message: "Pick off, 60 or 90 seconds." };
+  }
+
+  const turnTimer = seconds as TurnTimer;
+  return {
+    ok: true,
+    room: {
+      ...room,
+      turnTimer,
+      // Turning the timer off mid-scene has to stop the clock that is already
+      // running, or the room would be timed out by a rule it no longer has.
+      turnEndsAt: turnTimer === 0 ? null : deadlineFor({ ...room, turnTimer }, now),
+      updatedAt: now,
+    },
+  };
+}
+
+/**
+ * When the current decision runs out, or null if nothing is on the clock.
+ *
+ * Only the two phases where the room is waiting on one person are timed. A
+ * result beat has nobody to hurry — anyone can move it on — and the lobby is
+ * not a turn.
+ */
+export function deadlineFor(room: Room, now: number): number | null {
+  if (room.turnTimer === 0 || !room.game) return null;
+  if (room.game.phase !== "scene" && room.game.phase !== "minigame") return null;
+  return now + room.turnTimer * 1000;
+}
+
+/**
+ * What the clock is counting down for. When this changes, the clock restarts;
+ * while it stays the same, giving a Star or changing a vote does not buy the
+ * room another minute.
+ */
+const decisionKey = (room: Room) =>
+  room.game ? `${room.game.phase}:${room.game.sceneId}` : "none";
+
+/** Carry the turn clock across a change to the room, restarting it if the decision moved on. */
+export function withTurnClock(before: Room, after: Room, now: number): Room {
+  if (decisionKey(before) === decisionKey(after)) return after;
+  return { ...after, turnEndsAt: deadlineFor(after, now) };
+}
+
+/** True when the clock has run out and the room is still waiting. */
+export function turnExpired(room: Room, now: number): boolean {
+  return room.turnEndsAt !== null && now >= room.turnEndsAt;
+}
+
+/**
+ * Record that a player's browser is still there, and work out who else is.
+ *
+ * Presence is inferred from polling rather than from a connection, because
+ * there is no connection to watch: a browser that has stopped asking for the
+ * room has, as far as the room can tell, left it. A player who comes back is
+ * marked present again by their very next poll, which is the same mechanism
+ * that makes rejoining work.
+ */
+export function touch(room: Room, playerId: string, now: number): Room {
+  if (!room.players.some((p) => p.id === playerId)) return room;
+
+  const players = room.players.map((p) => {
+    if (p.id === playerId) return { ...p, lastSeen: now, connected: true };
+    return { ...p, connected: now - p.lastSeen < PRESENCE_TIMEOUT_MS };
+  });
+
+  return handOverHost({ ...room, players, updatedAt: now });
+}
+
+/**
+ * Pass host powers on when the host has gone quiet.
+ *
+ * The design doc's rule: "if the host leaves, host powers pass to the player
+ * who joined next". Without this a room whose host closed their laptop can
+ * never pick a story or start, and the only way out is for everyone to leave.
+ * The powers go back nowhere on their own — a returning host is a guest now,
+ * which is less surprising than powers moving twice.
+ */
+function handOverHost(room: Room): Room {
+  const host = room.players.find((p) => p.id === room.hostId);
+  if (host?.connected) return room;
+
+  const heir = [...room.players]
+    .filter((p) => p.connected)
+    .sort((a, b) => a.joinedAt - b.joinedAt)[0];
+  // Nobody is left to hand it to; the room keeps its host and waits.
+  if (!heir || heir.id === room.hostId) return room;
+
+  return {
+    ...room,
+    hostId: heir.id,
+    players: room.players.map((p) => ({ ...p, isHost: p.id === heir.id })),
   };
 }

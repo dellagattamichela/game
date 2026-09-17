@@ -15,6 +15,26 @@ import { PALETTES, partFor } from "@/characters/character";
 import { LAYER_ORDER, SPRITE_SIZE } from "@/characters/types";
 import type { Character, LayerId, Palette, PaletteSlot, Shape } from "@/characters/types";
 
+/**
+ * The closed-eye frame, drawn over the open eyes and hidden for all but a
+ * fraction of its cycle. A lid is a line where the lashes were, so it reuses
+ * the eye part's own lash rectangles rather than needing a second drawing.
+ */
+function Blink({ character, seed }: { character: Character; seed: number }) {
+  const eye = paletteBy("eye", character.eyeColor);
+  const shapes = partFor("eyes", character.eyes)?.shapes ?? [];
+  // The lash row of each eye, pulled down over the white.
+  const lids = shapes.filter((shape) => shape.shade === "line");
+
+  return (
+    <g className="ps-blink" style={{ animationDelay: `${(seed % 47) / 10}s` }}>
+      {lids.map((lid, i) => (
+        <rect key={i} x={lid.x} y={lid.y} width={lid.w} height={lid.h + 3} fill={eye.line} />
+      ))}
+    </g>
+  );
+}
+
 const paletteBy = (slot: Exclude<PaletteSlot, "ink">, id: string): Palette =>
   PALETTES[slot].find((p) => p.id === id) ?? PALETTES[slot][0];
 
@@ -53,6 +73,7 @@ export function CharacterSprite({
   dimmed = false,
   label,
   backdrop = "#1c1c22",
+  blinkSeed,
 }: {
   character: Character;
   size?: number;
@@ -60,6 +81,11 @@ export function CharacterSprite({
   label?: string;
   /** Null draws the sprite on nothing, for a preview that sits on the page. */
   backdrop?: string | null;
+  /**
+   * Turns the idle blink on, and staggers it. Omitted means a still sprite —
+   * which is what the creator's preview wants while someone is choosing eyes.
+   */
+  blinkSeed?: number;
 }) {
   return (
     <svg
@@ -73,6 +99,7 @@ export function CharacterSprite({
       shapeRendering="crispEdges"
     >
       {backdrop ? <rect x="0" y="0" width={SPRITE_SIZE} height={SPRITE_SIZE} fill={backdrop} /> : null}
+      {blinkSeed === undefined ? null : <Blink character={character} seed={blinkSeed} />}
       {layers(character).map((layer) =>
         layer.shapes.map((shape, i) => (
           <rect

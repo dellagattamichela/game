@@ -212,6 +212,25 @@ export function sceneView(story: Story, state: GameState): SceneView {
 // Endings
 // ---------------------------------------------------------------------------
 
+/**
+ * The option a turn timer picks when nobody decides in time.
+ *
+ * "Safe" means cheapest first, and among equals the earliest — stories are
+ * written with the free option as the unambitious one, so a timeout costs the
+ * room its best outcome rather than its Stars. Hidden options are not
+ * candidates: a choice the room cannot see must not be made on its behalf.
+ *
+ * Returns -1 only if the scene has nothing takeable at all, which validation
+ * makes unreachable but a timeout must not crash on.
+ */
+export function safeChoiceIndex(story: Story, state: GameState): number {
+  const view = sceneView(story, state);
+  const takeable = view.choices.filter((choice) => !choice.hidden && choice.available);
+  if (takeable.length === 0) return -1;
+
+  return takeable.reduce((best, choice) => (choice.cost < best.cost ? choice : best)).index;
+}
+
 export function totalStars(state: GameState): number {
   return state.players.reduce((sum, p) => sum + p.stars, 0);
 }
@@ -472,6 +491,7 @@ function commitChoice(
     mishapAdded,
     cluesFound,
     minigame: attempt,
+    gifts: state.gifts,
   };
 
   return {

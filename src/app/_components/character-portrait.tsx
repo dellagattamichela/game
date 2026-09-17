@@ -18,12 +18,15 @@ export function CharacterPortrait({
   character,
   size = 64,
   dimmed = false,
+  blink = false,
 }: {
   player: Pick<PlayerState, "id" | "name">;
   /** Omitted for a player who has not been to the creator. */
   character?: Character | null;
   size?: number;
   dimmed?: boolean;
+  /** Off in lists and grids; on where the cast is meant to look alive. */
+  blink?: boolean;
 }) {
   return (
     <CharacterSprite
@@ -31,6 +34,7 @@ export function CharacterPortrait({
       size={size}
       dimmed={dimmed}
       label={`${player.name}'s character`}
+      blinkSeed={blink ? hashString(player.id) : undefined}
     />
   );
 }

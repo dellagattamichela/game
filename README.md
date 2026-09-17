@@ -20,9 +20,10 @@ other people walk in through it, everyone builds a character and readies up,
 the host picks a story, and the room plays it — one seat per browser, spotlight
 turns, group votes, Star-giving and skill tests, through to an ending.
 
-What is missing is the drawings and the polish. Every character part is a
-placeholder made of rectangles, there are no backgrounds, no turn timer, and
-rooms talk over polling rather than a real-time channel.
+What is missing is the drawings, the sound and a real transport. Every
+character part is a placeholder made of rectangles, every sound cue is a
+synthesised beep, there are no backgrounds, and rooms talk over polling rather
+than a real-time channel.
 
 | Stage | Status |
 |---|---|
@@ -30,7 +31,7 @@ rooms talk over polling rather than a real-time channel.
 | 2. Character creator | done, on placeholder art |
 | 3. Rooms | done: create, invite, join, rejoin, ready, pick, start |
 | 4. Multiplayer turns | done: one seat per browser, played over polling |
-| 5. Polish | not started |
+| 5. Polish | done, on placeholder art and sound |
 | 6. More stories | not started |
 
 ## Running it
@@ -190,6 +191,57 @@ table, but it means a quick clicker can move past a result beat before everyone
 has read it. And a client reports its own skill-test outcome, so it could lie
 about passing; that is the trade the design doc already makes for turn timers,
 and it is the same trade for a game among friends.
+
+### The turn clock, and who is still there
+
+**One poll does three jobs.** It says the browser is still there, gives the
+turn clock a chance to run out, and re-renders the page. Presence, the clock
+and the refresh all want the same interval, and three requests every two
+seconds per player is three times the traffic for the same information.
+
+**The engine has no clock and should not get one.** It is a pure reducer, and
+"some time passed" is not something it can be handed. So the deadline lives on
+the room, the server checks it, and a timeout is expressed as the ordinary
+actions a player would have sent — which makes a timed-out scene
+indistinguishable, downstream, from a decisive one. Clients say "I polled"; the
+server decides whether the moment has passed.
+
+The safe option is the cheapest one on offer, never a hidden one: stories put
+the unambitious choice at zero Stars, so running out of time costs the room its
+best outcome rather than its Stars. On a group scene, silence counts as a safe
+vote for whoever did not vote, which resolves the tally without overruling the
+people who did. Walking away from a puzzle fails it. A result beat is not
+timed — nobody is being waited on.
+
+**Presence is inferred from polling**, because there is no connection to watch:
+a browser that stopped asking for the room has, as far as the room can tell,
+left it. If the host is the one who went quiet, host powers pass to the
+earliest-joined player still there, which is the doc's rule and the difference
+between a room that can be restarted and one that is stuck forever. They do not
+pass back on their own — a returning host is a guest now, which is less
+surprising than powers moving twice.
+
+### The ending screen
+
+Awards and the recap are computed from the log by `src/engine/awards.ts`, pure,
+so every screen reads the same run. An award nobody earned is not shown — a
+room where nobody gave a Star away should not be told who gave the fewest — and
+a tie is shared rather than broken arbitrarily. The recap keeps the scenes where
+something happened: a Star was spent, a mishap landed, a clue turned up, a skill
+test was rolled, or somebody chipped in. A fifty-scene run listed in full is not
+a recap.
+
+**Download the ending** builds a share card out of the sprites already on the
+page rather than redrawing them: they are SVG, so they clone straight into a new
+document, which keeps the parts catalog out of the client bundle and guarantees
+the picture matches what the room actually saw. A canvas rasterises it to PNG,
+because a chat window shows a PNG inline and offers to download an SVG again.
+
+Sound cues are synthesised oscillator notes rather than files, for the same
+reason the character art is rectangles: build the mechanism on stand-ins so
+that swapping in the real thing is a change to one file. Cues fire off state
+changes rather than off the click that caused them, so a spectator hears what
+the player who acted hears. There is a mute, remembered per browser.
 
 ## Characters
 

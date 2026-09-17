@@ -226,6 +226,12 @@ export type LogEntry = {
   cluesFound: string[];
   /** Present when the choice was a skill test, with whether it was passed. */
   minigame: { type: MinigameType; passed: boolean } | null;
+  /**
+   * Gifts made during this scene. Kept in the log, not only in the result
+   * beat, because "who bailed the room out, and how often" is a story the
+   * recap wants to tell and `gifts` is cleared the moment the scene ends.
+   */
+  gifts: Gift[];
 };
 
 /** A star transfer from one player to another, within the current scene. */

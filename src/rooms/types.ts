@@ -22,6 +22,21 @@ export const DEFAULT_MAX_PLAYERS = 4;
 /** Long enough for a nickname, short enough to fit under a 64px portrait. */
 export const MAX_NAME_LENGTH = 16;
 
+/** Turn timer settings the host can pick, in seconds. 0 is off. */
+export const TURN_TIMERS = [0, 60, 90] as const;
+export type TurnTimer = (typeof TURN_TIMERS)[number];
+
+/** Off by default: a timer is a thing a host turns on, not a thing sprung on a room. */
+export const DEFAULT_TURN_TIMER: TurnTimer = 0;
+
+/**
+ * A player who has not been heard from for this long is shown as away.
+ *
+ * Comfortably longer than the poll interval, so one slow request does not grey
+ * somebody out mid-scene.
+ */
+export const PRESENCE_TIMEOUT_MS = 12_000;
+
 export type RoomStatus = "lobby" | "playing" | "ended";
 
 export type RoomPlayer = {
@@ -44,6 +59,8 @@ export type RoomPlayer = {
   ready: boolean;
   connected: boolean;
   joinedAt: number;
+  /** Epoch ms of this player's last poll. Drives `connected` and host handover. */
+  lastSeen: number;
 };
 
 export type Room = {
@@ -61,6 +78,14 @@ export type Room = {
   updatedAt: number;
   /** Filled by `createGame` when the host starts. Stage 4. */
   game: GameState | null;
+  /** Seconds a decision may take before the safe option is picked. 0 is off. */
+  turnTimer: TurnTimer;
+  /**
+   * Epoch ms the current decision runs out, or null when nothing is on the
+   * clock. Held on the room rather than derived, so every client counts down
+   * to the same instant instead of to its own idea of when the scene began.
+   */
+  turnEndsAt: number | null;
 };
 
 export type RoomRejectionCode =
@@ -91,7 +116,8 @@ export type RoomRejectionCode =
   /** The room holds more or fewer people than the chosen story is written for. */
   | "wrong_player_count"
   /** Asked to play a scene in a room that is still in the lobby, or already over. */
-  | "not_playing";
+  | "not_playing"
+  | "invalid_timer";
 
 /**
  * Mirrors the engine's `ActionResult`: a typed rejection rather than a throw,

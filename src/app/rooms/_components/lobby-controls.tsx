@@ -18,9 +18,11 @@ import { useActionState } from "react";
 import {
   chooseStoryAction,
   setReadyAction,
+  setTimerAction,
   startGameAction,
   type LobbyState,
 } from "../actions";
+import { TURN_TIMERS } from "@/rooms/types";
 
 const EMPTY: LobbyState = { error: null };
 
@@ -109,6 +111,43 @@ export function StartButton({ code, blockedBecause }: { code: string; blockedBec
         {pending ? "Starting…" : "Start the game"}
       </button>
       {blockedBecause ? <p className="text-sm opacity-60">{blockedBecause}</p> : null}
+      <Problem state={state} />
+    </form>
+  );
+}
+
+/**
+ * The doc's turn timer: off, a minute, or ninety seconds.
+ *
+ * Off by default, because a clock is something a host turns on for a room that
+ * needs it, not a thing sprung on people who are enjoying the deliberating.
+ */
+export function TimerPicker({ code, seconds }: { code: string; seconds: number }) {
+  const [state, action, pending] = useActionState(setTimerAction, EMPTY);
+
+  return (
+    <form action={action} className="flex flex-col gap-1">
+      <h2 className="text-sm font-semibold">Turn timer</h2>
+      <div className="flex gap-2">
+        {TURN_TIMERS.map((option) => (
+          <button
+            key={option}
+            type="submit"
+            name="seconds"
+            value={option}
+            disabled={pending}
+            className={`flex-1 border py-1 text-sm disabled:opacity-40 ${
+              option === seconds ? "border-2 font-semibold" : "opacity-70"
+            }`}
+          >
+            {option === 0 ? "Off" : `${option}s`}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs opacity-60">
+        On time-out the room takes the safe option — the cheapest one on offer.
+      </p>
+      <input type="hidden" name="code" value={code} />
       <Problem state={state} />
     </form>
   );

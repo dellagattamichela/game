@@ -15,12 +15,23 @@
  * swapping it costs one file, and that `createRoomStore` can be handed a fake
  * clock and fake bytes in tests.
  */
-import { applyAction } from "@/engine/engine";
+import { applyAction, currentScene, safeChoiceIndex, sceneMode } from "@/engine/engine";
 import { newSeed } from "@/engine/rng";
 import type { Action } from "@/engine/types";
 import { getStory } from "@/stories";
 import { CODE_LENGTH, MAX_CODE_LENGTH, generateCode, normalizeCode } from "./code";
-import { createRoom, joinRoom, pickStory, setCharacter, setReady, startGame } from "./room";
+import {
+  createRoom,
+  joinRoom,
+  pickStory,
+  setCharacter,
+  setReady,
+  setTurnTimer,
+  startGame,
+  touch,
+  turnExpired,
+  withTurnClock,
+} from "./room";
 import {
   DEFAULT_MAX_PLAYERS,
   type Room,
@@ -64,8 +75,16 @@ export type RoomStore = {
   dress(code: string, playerId: string, character: unknown): RoomResult;
   /** The host chooses the story. Refuses an id the registry does not know. */
   chooseStory(code: string, playerId: string, storyId: string): RoomResult;
+  /** The host sets how long a decision may take. */
+  timer(code: string, playerId: string, seconds: number): RoomResult;
   /** The host starts: the room hands itself to the engine. */
   start(code: string, playerId: string): RoomResult;
+  /**
+   * One poll from one browser: says the player is still there, and gives the
+   * turn clock a chance to run out. Clients drive it, the server decides —
+   * nothing here trusts the caller's idea of what time it is.
+   */
+  poll(code: string, playerId: string): Room | undefined;
   /**
    * Play one engine action against the room's run. The caller is trusted to
    * have put the right `playerId` on the action — see `playAction`, which
@@ -142,6 +161,72 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
     return { ok: false, code: "room_not_found", message: "No room answers to that code." };
   }
 
+  /**
+   * Apply the safe option if the turn clock has run out.
+   *
+   * The engine has no clock and should not get one: it is a pure reducer, and
+   * "some time passed" is not something it can be handed. So the deadline
+   * lives on the room, the server checks it, and the timeout is expressed as
+   * the ordinary actions a player would have sent — which means a timed-out
+   * scene is indistinguishable, downstream, from a decisive one.
+   */
+  function runOutTheClock(room: Room): Room {
+    if (!turnExpired(room, now()) || !room.game || room.status !== "playing") return room;
+
+    const story = room.storyId ? getStory(room.storyId) : undefined;
+    if (!story) return room;
+
+    const game = room.game;
+    const timeouts: Action[] = [];
+
+    if (game.phase === "minigame" && game.minigame) {
+      // Walking away from a puzzle is failing it. The story carries on either
+      // way — a skill test costs the prize, never the run.
+      timeouts.push({ type: "minigameResult", playerId: game.minigame.playerId, passed: false });
+    } else if (game.phase === "scene") {
+      const safe = safeChoiceIndex(story, game);
+      if (safe < 0) return room;
+
+      if (sceneMode(currentScene(story, game)) === "group") {
+        // Silence counts as a vote for the safe option, which lets the room
+        // move on without overruling anyone who did vote.
+        for (const player of game.players) {
+          if (!(player.id in game.votes)) {
+            timeouts.push({ type: "vote", playerId: player.id, choiceIndex: safe });
+          }
+        }
+      } else {
+        timeouts.push({
+          type: "choose",
+          playerId: game.players[game.spotlightIndex].id,
+          choiceIndex: safe,
+        });
+      }
+    } else {
+      return room;
+    }
+
+    let state = game;
+    for (const action of timeouts) {
+      const result = applyAction(story, state, action);
+      // A refused timeout leaves the room exactly as it was rather than half
+      // applied: better a stuck clock than a scene resolved sideways.
+      if (!result.ok) return room;
+      state = result.state;
+    }
+
+    return withTurnClock(
+      room,
+      {
+        ...room,
+        game: state,
+        status: state.phase === "ended" ? "ended" : room.status,
+        updatedAt: now(),
+      },
+      now(),
+    );
+  }
+
   /** Store the result of a pure mutation, or pass its rejection straight back. */
   function commit(result: RoomResult): RoomResult {
     if (result.ok) rooms.set(result.room.code, result.room);
@@ -195,6 +280,12 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
       return commit(setCharacter(room, playerId, character, now()));
     },
 
+    timer(code, playerId, seconds) {
+      const room = find(code);
+      if (!room) return notFound();
+      return commit(setTurnTimer(room, playerId, seconds, now()));
+    },
+
     chooseStory(code, playerId, storyId) {
       const room = find(code);
       if (!room) return notFound();
@@ -215,7 +306,9 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
       // same message the lobby has been showing under the disabled button.
       const story = room.storyId ? getStory(room.storyId) : undefined;
 
-      return commit(startGame({ room, playerId, story, seed: seed(), now: now() }));
+      const started = startGame({ room, playerId, story, seed: seed(), now: now() });
+      if (!started.ok) return started;
+      return commit({ ok: true, room: withTurnClock(room, started.room, now()) });
     },
 
     act(code, action) {
@@ -243,12 +336,16 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
 
       // The engine decides the story is over; the room decides it is over too,
       // so a finished run stops accepting lobby actions as well as scene ones.
-      const played: Room = {
-        ...room,
-        game: result.state,
-        status: result.state.phase === "ended" ? "ended" : room.status,
-        updatedAt: now(),
-      };
+      const played: Room = withTurnClock(
+        room,
+        {
+          ...room,
+          game: result.state,
+          status: result.state.phase === "ended" ? "ended" : room.status,
+          updatedAt: now(),
+        },
+        now(),
+      );
       rooms.set(played.code, played);
       return { ok: true, room: played };
     },
@@ -263,6 +360,16 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
 
     close(code) {
       return rooms.delete(normalizeCode(code));
+    },
+
+    poll(code, playerId) {
+      const room = find(code);
+      if (!room) return undefined;
+
+      const seen = touch(room, playerId, now());
+      const ticked = runOutTheClock(seen);
+      rooms.set(ticked.code, ticked);
+      return ticked;
     },
 
     sweep,

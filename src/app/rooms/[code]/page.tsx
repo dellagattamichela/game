@@ -18,13 +18,15 @@ import {
   ReadyToggle,
   StartButton,
   StoryPicker,
+  TimerPicker,
   type StoryCard,
 } from "../_components/lobby-controls";
 import { RoomTable, type StoryChrome } from "../_components/room-table";
 import { CharacterPortrait } from "@/app/_components/character-portrait";
 import type { Character } from "@/characters/types";
+import { awards, highlights } from "@/engine/awards";
 import { resolveEnding, sceneView } from "@/engine/engine";
-import type { GameState, Story } from "@/engine/types";
+import type { GameState, LogEntry, Story } from "@/engine/types";
 import { normalizeCode } from "@/rooms/code";
 import { PLAYER_COOKIE } from "@/rooms/player";
 import { hasSeat, isMember, startBlocker } from "@/rooms/room";
@@ -68,7 +70,11 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
         room.status === "lobby" ? "max-w-md" : "max-w-2xl"
       }`}
     >
-      <LobbyRefresh everyMs={room.status === "lobby" ? 3000 : 2000} paused={myMinigame || settled} />
+      <LobbyRefresh
+        code={room.code}
+        everyMs={room.status === "lobby" ? 3000 : 2000}
+        paused={myMinigame || settled}
+      />
       <h1 className="text-2xl font-bold">{room.status === "lobby" ? "Lobby" : story?.title}</h1>
 
       {room.status === "lobby" ? <InviteCode code={room.code} link={link} /> : null}
@@ -96,6 +102,8 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
             </p>
           )}
 
+          {isHost ? <TimerPicker code={room.code} seconds={room.turnTimer} /> : null}
+
           {isHost ? (
             <StartButton
               code={room.code}
@@ -110,6 +118,7 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
           code={room.code}
           myId={playerId}
           characters={Object.fromEntries(room.players.map((p) => [p.id, p.character]))}
+          turnEndsAt={room.turnEndsAt}
         />
       )}
 
@@ -134,6 +143,7 @@ function Table({
   code,
   myId,
   characters,
+  turnEndsAt,
 }: {
   game: GameState | null;
   story: Story | undefined;
@@ -141,6 +151,7 @@ function Table({
   myId: string;
   /** Seats keep the faces; the engine's players only know names and Stars. */
   characters: Record<string, Character>;
+  turnEndsAt: number | null;
 }) {
   if (!story || !game) return null;
 
@@ -166,6 +177,18 @@ function Table({
             return { title: ending.title, text: ending.text };
           })()
         : null,
+    // Both come from the log, computed here so the client never has to agree
+    // with the server about what happened.
+    awards:
+      game.phase === "ended"
+        ? awards(game).map((award) => ({
+            ...award,
+            who: award.playerIds
+              .map((id) => game.players.find((p) => p.id === id)?.name ?? id)
+              .join(" & "),
+          }))
+        : [],
+    recap: game.phase === "ended" ? highlights(game).map(momentOf(story)) : [],
   };
 
   return (
@@ -176,9 +199,25 @@ function Table({
       view={sceneView(story, game)}
       chrome={chrome}
       characters={characters}
+      turnEndsAt={turnEndsAt}
     />
   );
 }
+
+/** One line of the recap: what was chosen, and what it cost or turned up. */
+const momentOf = (story: Story) => (entry: LogEntry) => {
+  const notes = [
+    entry.starsSpent > 0 ? `${entry.starsSpent} ⭐` : null,
+    entry.minigame ? (entry.minigame.passed ? "passed" : "failed") : null,
+    entry.cluesFound.length > 0
+      ? entry.cluesFound.map((id) => story.clues?.[id]?.title ?? id).join(", ")
+      : null,
+    entry.mishapAdded ? (story.mishaps?.[entry.mishapAdded]?.title ?? "mishap") : null,
+    entry.gifts.length > 0 ? "someone chipped in" : null,
+  ].filter(Boolean);
+
+  return { label: entry.label, note: notes.join(" · ") };
+};
 
 /**
  * The story list, flattened to what the picker draws. Built here so the client

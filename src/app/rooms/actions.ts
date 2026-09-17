@@ -228,3 +228,38 @@ export async function saveCharacterAction(code: string, character: unknown): Pro
   refresh();
   return { error: null };
 }
+
+/**
+ * One tick of a client's poll.
+ *
+ * It does three jobs in one round trip, which is why it exists instead of the
+ * client simply calling `router.refresh()`: it says this browser is still
+ * here, it gives the turn clock a chance to run out, and it re-renders the
+ * page. Splitting them would mean three requests every two seconds per player.
+ *
+ * Nothing here trusts the caller about time. The client says "I polled"; the
+ * server decides whether a deadline has passed.
+ */
+export async function pollAction(code: string): Promise<void> {
+  const playerId = await currentPlayerId();
+  if (playerId) rooms.poll(code, playerId);
+  refresh();
+}
+
+export async function setTimerAction(
+  _previous: LobbyState,
+  formData: FormData,
+): Promise<LobbyState> {
+  const playerId = await currentPlayerId();
+  if (!playerId) return NOT_YOU;
+
+  const result = rooms.timer(
+    String(formData.get("code") ?? ""),
+    playerId,
+    Number(formData.get("seconds") ?? 0),
+  );
+  if (!result.ok) return { error: result.message };
+
+  refresh();
+  return { error: null };
+}

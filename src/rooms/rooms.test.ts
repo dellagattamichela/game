@@ -7,13 +7,21 @@ import {
   joinRoom,
   normalizeName,
   setCharacter,
+  setTurnTimer,
+  touch,
+  turnExpired,
   pickStory,
   setReady,
   startBlocker,
   startGame,
 } from "./room";
 import { createRoomStore } from "./store";
-import { DEFAULT_MAX_PLAYERS, MAX_NAME_LENGTH, type Room } from "./types";
+import {
+  DEFAULT_MAX_PLAYERS,
+  MAX_NAME_LENGTH,
+  PRESENCE_TIMEOUT_MS,
+  type Room,
+} from "./types";
 import { requireStory } from "@/stories";
 import { DEFAULT_CHARACTER, randomCharacter } from "@/characters/character";
 import { hashString } from "@/engine/rng";
@@ -55,11 +63,14 @@ describe("createRoom", () => {
           ready: true,
           connected: true,
           joinedAt: 1000,
+          lastSeen: 1000,
         },
       ],
       createdAt: 1000,
       updatedAt: 1000,
       game: null,
+      turnTimer: 0,
+      turnEndsAt: null,
     });
   });
 
@@ -143,6 +154,7 @@ describe("joinRoom", () => {
       ready: false,
       connected: true,
       joinedAt: 2000,
+      lastSeen: 2000,
     });
   });
 
@@ -472,6 +484,74 @@ describe("setCharacter", () => {
   });
 });
 
+describe("the turn clock", () => {
+  function playing(turnTimer: 0 | 60 | 90) {
+    const created = createRoom({ code: "MNPQ", host: HOST, maxPlayers: 4, now: 1000 });
+    if (!created.ok) throw new Error("fixture failed");
+    return {
+      ...created.room,
+      turnTimer,
+      status: "playing" as const,
+      game: { phase: "scene", sceneId: "s1" } as never,
+    };
+  }
+
+  it("is not expired while nothing is on the clock", () => {
+    expect(turnExpired({ ...playing(0), turnEndsAt: null }, 9_999_999)).toBe(false);
+  });
+
+  it("expires exactly on the deadline, not a tick before", () => {
+    const room = { ...playing(60), turnEndsAt: 5000 };
+    expect(turnExpired(room, 4999)).toBe(false);
+    expect(turnExpired(room, 5000)).toBe(true);
+  });
+
+  it("refuses a timer from anyone but the host", () => {
+    expect(setTurnTimer(playing(0), "p2", 60, 1000)).toMatchObject({ ok: false, code: "not_host" });
+  });
+});
+
+describe("presence", () => {
+  function pair() {
+    const created = createRoom({ code: "MNPQ", host: HOST, maxPlayers: 4, now: 1000 });
+    if (!created.ok) throw new Error("fixture failed");
+    const joined = joinRoom({ room: created.room, player: { id: "p2", name: "Bo" }, now: 1000 });
+    if (!joined.ok) throw new Error("fixture failed");
+    return joined.room;
+  }
+
+  it("ignores a poll from someone who is not in the room", () => {
+    const room = pair();
+    expect(touch(room, "stranger", 5000)).toBe(room);
+  });
+
+  it("hands the host over when the host goes quiet", () => {
+    const room = pair();
+
+    // Only Bo is still polling, well past the presence timeout.
+    const after = touch(room, "p2", 1000 + PRESENCE_TIMEOUT_MS + 1);
+
+    expect(after.hostId).toBe("p2");
+    expect(after.players.find((p) => p.id === "p2")?.isHost).toBe(true);
+    expect(after.players.find((p) => p.id === HOST.id)?.isHost).toBe(false);
+  });
+
+  it("keeps the host while the host is still there", () => {
+    const room = pair();
+    const after = touch(room, HOST.id, 2000);
+    expect(after.hostId).toBe(HOST.id);
+  });
+
+  it("does not hand the host to nobody when the room has emptied", () => {
+    const room = pair();
+    // A poll from the host, long after everyone including them went quiet:
+    // the host is present by definition of having just polled.
+    const after = touch(room, HOST.id, 1000 + PRESENCE_TIMEOUT_MS * 10);
+    expect(after.hostId).toBe(HOST.id);
+    expect(after.players.find((p) => p.id === "p2")?.connected).toBe(false);
+  });
+});
+
 describe("the store", () => {
   it("mints a code for a new room and finds the room by it", () => {
     const store = createRoomStore();
@@ -785,6 +865,184 @@ describe("the store", () => {
       ok: false,
       code: "not_a_member",
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // Stage 5: the turn clock and who is still in the room
+  // -------------------------------------------------------------------------
+
+  /** A started run of The Pilot, on a clock the test controls. */
+  function timed(seconds = 60) {
+    const clock = fakeClock();
+    const store = createRoomStore({
+      now: clock.now,
+      generate: scriptedCodes("MNPQ"),
+      seed: () => 7,
+    });
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.join("MNPQ", { playerId: "p2", name: "Bo" });
+    store.ready("MNPQ", "p2", true);
+    store.chooseStory("MNPQ", "h", "the-pilot");
+    store.timer("MNPQ", "h", seconds);
+    store.start("MNPQ", "h");
+    return { store, clock };
+  }
+
+  it("puts the first scene on the clock when the game starts", () => {
+    const { store, clock } = timed(60);
+    expect(store.find("MNPQ")?.turnEndsAt).toBe(clock.now() + 60_000);
+  });
+
+  it("leaves the clock off when the host never set one", () => {
+    const { store } = timed(0);
+    expect(store.find("MNPQ")?.turnEndsAt).toBeNull();
+  });
+
+  it("picks the safe option when a spotlight turn runs out", () => {
+    const { store, clock } = timed(60);
+    const before = store.find("MNPQ")!.game!;
+
+    clock.advance(60_001);
+    store.poll("MNPQ", "p2");
+
+    const after = store.find("MNPQ")!.game!;
+    expect(after.phase).toBe("result");
+    // Scene one of The Pilot is free throughout, so the first option is safe.
+    expect(after.pending?.choiceIndex).toBe(0);
+    expect(before.phase).toBe("scene");
+  });
+
+  it("does not fire early", () => {
+    const { store, clock } = timed(60);
+    clock.advance(59_000);
+    store.poll("MNPQ", "p2");
+    expect(store.find("MNPQ")?.game?.phase).toBe("scene");
+  });
+
+  it("restarts the clock on the next scene, not on every little action", () => {
+    const { store, clock } = timed(60);
+    const first = store.find("MNPQ")!.turnEndsAt;
+
+    clock.advance(10_000);
+    // A gift is not a decision: it must not buy the room another minute.
+    store.act("MNPQ", { type: "give", fromId: "p2", toId: "h", amount: 1 });
+    expect(store.find("MNPQ")?.turnEndsAt).toBe(first);
+
+    store.act("MNPQ", { type: "choose", playerId: "h", choiceIndex: 0 });
+    expect(store.find("MNPQ")?.turnEndsAt).not.toBe(first);
+  });
+
+  it("leaves the result beat off the clock, since nobody is being waited on", () => {
+    const { store, clock } = timed(60);
+    store.act("MNPQ", { type: "choose", playerId: "h", choiceIndex: 0 });
+
+    expect(store.find("MNPQ")?.game?.phase).toBe("result");
+    expect(store.find("MNPQ")?.turnEndsAt).toBeNull();
+
+    clock.advance(600_000);
+    store.poll("MNPQ", "p2");
+    // Still waiting, not skipped past.
+    expect(store.find("MNPQ")?.game?.phase).toBe("result");
+  });
+
+  it("counts silence as a safe vote, without overruling anyone who voted", () => {
+    const { store, clock } = timed(60);
+    const story = requireStory("the-pilot");
+
+    // Walk to the first group scene.
+    for (let i = 0; i < 20; i++) {
+      const game = store.find("MNPQ")!.game!;
+      if (story.scenes[game.sceneId].mode === "group" && game.phase === "scene") break;
+      if (game.phase === "result") store.act("MNPQ", { type: "continue", playerId: "h" });
+      else
+        store.act("MNPQ", {
+          type: "choose",
+          playerId: game.players[game.spotlightIndex].id,
+          choiceIndex: 1,
+        });
+    }
+
+    const game = store.find("MNPQ")!.game!;
+    expect(game.phase).toBe("scene");
+    store.act("MNPQ", { type: "vote", playerId: "p2", choiceIndex: 1 });
+
+    clock.advance(60_001);
+    store.poll("MNPQ", "h");
+
+    const after = store.find("MNPQ")!.game!;
+    // The vote completed rather than hanging on the silent player.
+    expect(after.phase).toBe("result");
+  });
+
+  it("counts walking away from a puzzle as failing it", () => {
+    const clock = fakeClock();
+    const store = createRoomStore({ now: clock.now, generate: scriptedCodes("MNPQ"), seed: () => 3 });
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.join("MNPQ", { playerId: "p2", name: "Bo" });
+    store.ready("MNPQ", "p2", true);
+    store.chooseStory("MNPQ", "h", "stranded");
+    store.timer("MNPQ", "h", 60);
+    store.start("MNPQ", "h");
+
+    const story = requireStory("stranded");
+    // Walk until somebody is mid-puzzle.
+    for (let i = 0; i < 200; i++) {
+      const game = store.find("MNPQ")!.game!;
+      if (game.phase === "minigame") break;
+      if (game.phase === "result") {
+        store.act("MNPQ", { type: "continue", playerId: "h" });
+        continue;
+      }
+      if (story.scenes[game.sceneId].mode === "group") {
+        for (const p of game.players) {
+          store.act("MNPQ", { type: "vote", playerId: p.id, choiceIndex: 0 });
+        }
+        continue;
+      }
+      const spotlight = game.players[game.spotlightIndex].id;
+      for (const index of [0, 1, 2]) {
+        if (store.act("MNPQ", { type: "choose", playerId: spotlight, choiceIndex: index }).ok) break;
+      }
+    }
+
+    expect(store.find("MNPQ")?.game?.phase).toBe("minigame");
+    clock.advance(60_001);
+    store.poll("MNPQ", "h");
+
+    const after = store.find("MNPQ")!.game!;
+    expect(after.phase).toBe("result");
+    expect(after.pending?.minigame).toMatchObject({ passed: false });
+  });
+
+  it("refuses a timer setting that is not on offer, and anyone but the host", () => {
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ") });
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.join("MNPQ", { playerId: "p2", name: "Bo" });
+
+    expect(store.timer("MNPQ", "h", 45)).toMatchObject({ ok: false, code: "invalid_timer" });
+    expect(store.timer("MNPQ", "p2", 60)).toMatchObject({ ok: false, code: "not_host" });
+  });
+
+  it("stops a running clock when the host turns the timer off", () => {
+    const { store } = timed(60);
+    expect(store.find("MNPQ")?.turnEndsAt).not.toBeNull();
+
+    store.timer("MNPQ", "h", 0);
+    expect(store.find("MNPQ")?.turnEndsAt).toBeNull();
+  });
+
+  it("marks a player away once they stop polling, and present again when they come back", () => {
+    const clock = fakeClock();
+    const store = createRoomStore({ now: clock.now, generate: scriptedCodes("MNPQ") });
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.join("MNPQ", { playerId: "p2", name: "Bo" });
+
+    clock.advance(20_000);
+    store.poll("MNPQ", "h");
+    expect(store.find("MNPQ")?.players.find((p) => p.id === "p2")?.connected).toBe(false);
+
+    store.poll("MNPQ", "p2");
+    expect(store.find("MNPQ")?.players.find((p) => p.id === "p2")?.connected).toBe(true);
   });
 
   it("closes a room on request", () => {
