@@ -14,6 +14,7 @@ import {
   MAX_ROOM_PLAYERS,
   MIN_ROOM_PLAYERS,
 } from "@/rooms/types";
+import { translator, type Locale } from "@/i18n";
 
 const EMPTY: CreateRoomState = {
   error: null,
@@ -25,13 +26,14 @@ const SIZES = Array.from(
   (_, i) => MIN_ROOM_PLAYERS + i,
 );
 
-export function CreateRoomForm() {
+export function CreateRoomForm({ locale }: { locale: Locale }) {
+  const t = translator(locale);
   const [state, action, pending] = useActionState(createRoomAction, EMPTY);
 
   return (
     <form action={action} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1">
-        <span className="text-sm font-semibold">Your name</span>
+        <span className="text-sm font-semibold">{t("form.yourName")}</span>
         <input
           name="name"
           required
@@ -43,7 +45,7 @@ export function CreateRoomForm() {
       </label>
 
       <fieldset className="flex flex-col gap-1">
-        <legend className="text-sm font-semibold">Table size</legend>
+        <legend className="text-sm font-semibold">{t("form.tableSize")}</legend>
         <div className="mt-1 flex gap-2">
           {SIZES.map((size) => (
             <label key={size} className="flex-1">
@@ -60,17 +62,17 @@ export function CreateRoomForm() {
             </label>
           ))}
         </div>
-        <p className="text-xs opacity-60">You can start before the room is full.</p>
+        <p className="text-xs opacity-60">{t("form.tableSizeHint")}</p>
       </fieldset>
 
       {state.error ? (
         <p role="alert" className="border border-amber-600 px-2 py-1 text-sm text-amber-700">
-          {state.error}
+          {t(state.error.key, state.error.params)}
         </p>
       ) : null}
 
       <button type="submit" disabled={pending} className="border-2 px-4 py-2 font-semibold disabled:opacity-40">
-        {pending ? "Making a room…" : "Create room"}
+        {pending ? t("form.creating") : t("form.createRoom")}
       </button>
     </form>
   );

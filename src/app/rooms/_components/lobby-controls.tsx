@@ -23,6 +23,7 @@ import {
   type LobbyState,
 } from "../actions";
 import { TURN_TIMERS } from "@/rooms/types";
+import { translator, type Locale, type Translate } from "@/i18n";
 
 const EMPTY: LobbyState = { error: null };
 
@@ -33,16 +34,25 @@ export type StoryCard = {
   detail: string;
 };
 
-function Problem({ state }: { state: LobbyState }) {
+function Problem({ state, t }: { state: LobbyState; t: Translate }) {
   if (!state.error) return null;
   return (
     <p role="alert" className="border border-amber-600 px-2 py-1 text-sm text-amber-700">
-      {state.error}
+      {t(state.error.key, state.error.params)}
     </p>
   );
 }
 
-export function ReadyToggle({ code, ready }: { code: string; ready: boolean }) {
+export function ReadyToggle({
+  code,
+  ready,
+  locale,
+}: {
+  code: string;
+  ready: boolean;
+  locale: Locale;
+}) {
+  const t = translator(locale);
   const [state, action, pending] = useActionState(setReadyAction, EMPTY);
 
   return (
@@ -54,9 +64,9 @@ export function ReadyToggle({ code, ready }: { code: string; ready: boolean }) {
         disabled={pending}
         className={`border-2 px-4 py-2 font-semibold disabled:opacity-40 ${ready ? "opacity-70" : ""}`}
       >
-        {ready ? "I'm not ready after all" : "I'm ready"}
+        {ready ? t("lobby.notReadyAfterAll") : t("lobby.imReady")}
       </button>
-      <Problem state={state} />
+      <Problem state={state} t={t} />
     </form>
   );
 }
@@ -65,17 +75,20 @@ export function StoryPicker({
   code,
   stories,
   chosenId,
+  locale,
 }: {
   code: string;
   stories: StoryCard[];
   chosenId: string | null;
+  locale: Locale;
 }) {
+  const t = translator(locale);
   const [state, action, pending] = useActionState(chooseStoryAction, EMPTY);
 
   return (
     <form action={action} className="flex flex-col gap-2">
       <input type="hidden" name="code" value={code} />
-      <h2 className="text-sm font-semibold">Story</h2>
+      <h2 className="text-sm font-semibold">{t("lobby.story")}</h2>
       {stories.map((story) => (
         <button
           key={story.id}
@@ -92,12 +105,21 @@ export function StoryPicker({
           <span className="block text-xs font-normal opacity-50">{story.detail}</span>
         </button>
       ))}
-      <Problem state={state} />
+      <Problem state={state} t={t} />
     </form>
   );
 }
 
-export function StartButton({ code, blockedBecause }: { code: string; blockedBecause: string | null }) {
+export function StartButton({
+  code,
+  blockedBecause,
+  locale,
+}: {
+  code: string;
+  blockedBecause: string | null;
+  locale: Locale;
+}) {
+  const t = translator(locale);
   const [state, action, pending] = useActionState(startGameAction, EMPTY);
 
   return (
@@ -108,10 +130,10 @@ export function StartButton({ code, blockedBecause }: { code: string; blockedBec
         disabled={pending || blockedBecause !== null}
         className="border-2 px-4 py-2 font-semibold disabled:opacity-40"
       >
-        {pending ? "Starting…" : "Start the game"}
+        {pending ? t("lobby.starting") : t("lobby.start")}
       </button>
       {blockedBecause ? <p className="text-sm opacity-60">{blockedBecause}</p> : null}
-      <Problem state={state} />
+      <Problem state={state} t={t} />
     </form>
   );
 }
@@ -122,12 +144,21 @@ export function StartButton({ code, blockedBecause }: { code: string; blockedBec
  * Off by default, because a clock is something a host turns on for a room that
  * needs it, not a thing sprung on people who are enjoying the deliberating.
  */
-export function TimerPicker({ code, seconds }: { code: string; seconds: number }) {
+export function TimerPicker({
+  code,
+  seconds,
+  locale,
+}: {
+  code: string;
+  seconds: number;
+  locale: Locale;
+}) {
+  const t = translator(locale);
   const [state, action, pending] = useActionState(setTimerAction, EMPTY);
 
   return (
     <form action={action} className="flex flex-col gap-1">
-      <h2 className="text-sm font-semibold">Turn timer</h2>
+      <h2 className="text-sm font-semibold">{t("lobby.turnTimer")}</h2>
       <div className="flex gap-2">
         {TURN_TIMERS.map((option) => (
           <button
@@ -140,15 +171,15 @@ export function TimerPicker({ code, seconds }: { code: string; seconds: number }
               option === seconds ? "border-2 font-semibold" : "opacity-70"
             }`}
           >
-            {option === 0 ? "Off" : `${option}s`}
+            {option === 0 ? t("lobby.timerOff") : t("lobby.timerSeconds", { seconds: option })}
           </button>
         ))}
       </div>
       <p className="text-xs opacity-60">
-        On time-out the room takes the safe option — the cheapest one on offer.
+        {t("lobby.timerHint")}
       </p>
       <input type="hidden" name="code" value={code} />
-      <Problem state={state} />
+      <Problem state={state} t={t} />
     </form>
   );
 }

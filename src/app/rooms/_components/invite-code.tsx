@@ -9,8 +9,18 @@
  * so it is right on the first paint instead of appearing a frame later.
  */
 import { useState } from "react";
+import { translator, type Locale } from "@/i18n";
 
-export function InviteCode({ code, link }: { code: string; link: string }) {
+export function InviteCode({
+  code,
+  link,
+  locale,
+}: {
+  code: string;
+  link: string;
+  locale: Locale;
+}) {
+  const t = translator(locale);
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
 
   async function copy(what: "code" | "link", text: string) {
@@ -26,12 +36,12 @@ export function InviteCode({ code, link }: { code: string; link: string }) {
 
   return (
     <div className="flex flex-col items-center gap-3 border-2 p-6">
-      <p className="text-sm opacity-70">Invite code</p>
+      <p className="text-sm opacity-70">{t("form.inviteCode")}</p>
       <p className="font-mono text-5xl font-bold tracking-[0.3em] tabular-nums">{code}</p>
 
       <div className="flex gap-2">
         <button type="button" className="border px-3 py-1 text-sm" onClick={() => copy("code", code)}>
-          {copied === "code" ? "Copied" : "Copy code"}
+          {copied === "code" ? t("invite.copied") : t("invite.copyCode")}
         </button>
         <button
           type="button"
@@ -39,7 +49,7 @@ export function InviteCode({ code, link }: { code: string; link: string }) {
           disabled={!link}
           onClick={() => copy("link", link)}
         >
-          {copied === "link" ? "Copied" : "Copy link"}
+          {copied === "link" ? t("invite.copied") : t("invite.copyLink")}
         </button>
       </div>
 

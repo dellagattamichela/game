@@ -14,6 +14,7 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Action } from "@/engine/types";
+import type { MessageKey, Params } from "@/i18n";
 import { PLAYER_COOKIE, PLAYER_COOKIE_MAX_AGE, newPlayerId } from "@/rooms/player";
 import { rooms } from "@/rooms/store";
 import { DEFAULT_MAX_PLAYERS } from "@/rooms/types";
@@ -23,8 +24,14 @@ import { DEFAULT_MAX_PLAYERS } from "@/rooms/types";
  * the initial value of this state lives with the form that owns it. Types are
  * erased at compile time and may still be exported from here.
  */
+/**
+ * A refusal on its way back to a browser, as a key rather than a sentence, so
+ * the sentence is chosen by the reader's language and not by the server's.
+ */
+export type ActionError = { key: MessageKey; params?: Params } | null;
+
 export type CreateRoomState = {
-  error: string | null;
+  error: ActionError;
   /** Echoed back so a rejected form does not wipe what the host typed. */
   values: { name: string; maxPlayers: number };
 };
@@ -43,7 +50,7 @@ export async function createRoomAction(
   const hostId = jar.get(PLAYER_COOKIE)?.value ?? newPlayerId();
 
   const result = rooms.open({ hostId, hostName: name, maxPlayers });
-  if (!result.ok) return { error: result.message, values };
+  if (!result.ok) return { error: { key: result.key, params: result.params }, values };
 
   jar.set(PLAYER_COOKIE, hostId, {
     httpOnly: true,
@@ -57,7 +64,7 @@ export async function createRoomAction(
 }
 
 export type JoinRoomState = {
-  error: string | null;
+  error: ActionError;
   values: { code: string; name: string };
 };
 
@@ -80,7 +87,7 @@ export async function joinRoomAction(
   const playerId = jar.get(PLAYER_COOKIE)?.value ?? newPlayerId();
 
   const result = rooms.join(code, { playerId, name });
-  if (!result.ok) return { error: result.message, values };
+  if (!result.ok) return { error: { key: result.key, params: result.params }, values };
 
   jar.set(PLAYER_COOKIE, playerId, {
     httpOnly: true,
@@ -97,14 +104,14 @@ export async function joinRoomAction(
  * behalf of whoever the cookie says you are, and they either change something
  * or come back with a sentence explaining why not.
  */
-export type LobbyState = { error: string | null };
+export type LobbyState = { error: ActionError };
 
 /** Who the browser claims to be. Null when it has never been anywhere. */
 async function currentPlayerId(): Promise<string | null> {
   return (await cookies()).get(PLAYER_COOKIE)?.value ?? null;
 }
 
-const NOT_YOU: LobbyState = { error: "This browser is not in that room." };
+const NOT_YOU: LobbyState = { error: { key: "reject.notYourBrowser" } };
 
 export async function setReadyAction(
   _previous: LobbyState,
@@ -117,7 +124,7 @@ export async function setReadyAction(
   const ready = formData.get("ready") === "true";
 
   const result = rooms.ready(code, playerId, ready);
-  if (!result.ok) return { error: result.message };
+  if (!result.ok) return { error: { key: result.key, params: result.params } };
 
   // The lobby already polls, but waiting up to three seconds to see your own
   // button change state would feel broken. This re-renders it immediately.
@@ -137,7 +144,7 @@ export async function chooseStoryAction(
     playerId,
     String(formData.get("storyId") ?? ""),
   );
-  if (!result.ok) return { error: result.message };
+  if (!result.ok) return { error: { key: result.key, params: result.params } };
 
   refresh();
   return { error: null };
@@ -151,7 +158,7 @@ export async function startGameAction(
   if (!playerId) return NOT_YOU;
 
   const result = rooms.start(String(formData.get("code") ?? ""), playerId);
-  if (!result.ok) return { error: result.message };
+  if (!result.ok) return { error: { key: result.key, params: result.params } };
 
   refresh();
   return { error: null };
@@ -201,10 +208,10 @@ export async function playAction(code: string, input: unknown): Promise<LobbySta
   if (!playerId) return NOT_YOU;
 
   const parsed = playInput.safeParse(input);
-  if (!parsed.success) return { error: "That move made no sense." };
+  if (!parsed.success) return { error: { key: "reject.nonsense" } };
 
   const result = rooms.act(code, toEngineAction(parsed.data, playerId));
-  if (!result.ok) return { error: result.message };
+  if (!result.ok) return { error: { key: result.key, params: result.params } };
 
   refresh();
   return { error: null };
@@ -223,7 +230,7 @@ export async function saveCharacterAction(code: string, character: unknown): Pro
   if (!playerId) return NOT_YOU;
 
   const result = rooms.dress(code, playerId, character);
-  if (!result.ok) return { error: result.message };
+  if (!result.ok) return { error: { key: result.key, params: result.params } };
 
   refresh();
   return { error: null };
@@ -258,7 +265,7 @@ export async function setTimerAction(
     playerId,
     Number(formData.get("seconds") ?? 0),
   );
-  if (!result.ok) return { error: result.message };
+  if (!result.ok) return { error: { key: result.key, params: result.params } };
 
   refresh();
   return { error: null };

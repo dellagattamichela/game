@@ -158,7 +158,12 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
    * information a stranger needs.
    */
   function notFound(): RoomResult {
-    return { ok: false, code: "room_not_found", message: "No room answers to that code." };
+    return {
+      ok: false,
+      code: "room_not_found",
+      message: "No room answers to that code.",
+      key: "reject.roomNotFound",
+    };
   }
 
   /**
@@ -245,6 +250,7 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
           ok: false,
           code: "code_unavailable",
           message: "Could not find a free invite code. Try again in a moment.",
+          key: "reject.codeUnavailable",
         };
       }
 
@@ -292,7 +298,13 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
 
       const story = getStory(storyId);
       if (!story) {
-        return { ok: false, code: "unknown_story", message: `No story called "${storyId}".` };
+        return {
+          ok: false,
+          code: "unknown_story",
+          message: `No story called "${storyId}".`,
+          key: "reject.unknownStory",
+          params: { id: storyId },
+        };
       }
 
       return commit(pickStory(room, playerId, story, now()));
@@ -320,15 +332,20 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
           ok: false,
           code: "not_playing",
           message:
-            room.status === "lobby"
-              ? "This game has not started yet."
-              : "This game is over.",
+            room.status === "lobby" ? "This game has not started yet." : "This game is over.",
+          key: room.status === "lobby" ? "reject.notStartedYet" : "reject.gameOver",
         };
       }
 
       const story = room.storyId ? getStory(room.storyId) : undefined;
       if (!story) {
-        return { ok: false, code: "unknown_story", message: `No story called "${room.storyId}".` };
+        return {
+          ok: false,
+          code: "unknown_story",
+          message: `No story called "${room.storyId}".`,
+          key: "reject.unknownStory",
+          params: { id: room.storyId ?? "" },
+        };
       }
 
       const result = applyAction(story, room.game, action);

@@ -22,6 +22,7 @@ import {
   type Room,
   type RoomPlayer,
   type TurnTimer,
+  type Refusal,
   type RoomRejectionCode,
   type RoomResult,
 } from "./types";
@@ -54,12 +55,23 @@ export type CreateRoomInput = {
  */
 export function createRoom({ code, host, maxPlayers, now }: CreateRoomInput): RoomResult {
   if (!isValidCode(code)) {
-    return { ok: false, code: "invalid_code", message: `"${code}" is not a valid invite code.` };
+    return {
+      ok: false,
+      code: "invalid_code",
+      message: `"${code}" is not a valid invite code.`,
+      key: "reject.invalidCode",
+      params: { code },
+    };
   }
 
   const name = normalizeName(host.name);
   if (name.length === 0) {
-    return { ok: false, code: "invalid_name", message: "Pick a name so the room knows who you are." };
+    return {
+      ok: false,
+      code: "invalid_name",
+      message: "Pick a name so the room knows who you are.",
+      key: "reject.invalidName",
+    };
   }
 
   if (
@@ -71,6 +83,8 @@ export function createRoom({ code, host, maxPlayers, now }: CreateRoomInput): Ro
       ok: false,
       code: "invalid_max_players",
       message: `A room holds ${MIN_ROOM_PLAYERS} to ${MAX_ROOM_PLAYERS} players.`,
+      key: "reject.invalidMaxPlayers",
+      params: { min: MIN_ROOM_PLAYERS, max: MAX_ROOM_PLAYERS },
     };
   }
 
@@ -142,7 +156,12 @@ export type JoinRoomInput = {
 export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
   const name = normalizeName(player.name);
   if (name.length === 0) {
-    return { ok: false, code: "invalid_name", message: "Pick a name so the room knows who you are." };
+    return {
+      ok: false,
+      code: "invalid_name",
+      message: "Pick a name so the room knows who you are.",
+      key: "reject.invalidName",
+    };
   }
 
   const seat = room.players.find((p) => p.id === player.id);
@@ -151,7 +170,13 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
     // Coming back. The name is refreshed because a player may have changed it
     // on the way in, which means it can collide like any other name.
     if (nameTaken(room, name, player.id)) {
-      return { ok: false, code: "name_taken", message: `Someone here is already called ${name}.` };
+      return {
+        ok: false,
+        code: "name_taken",
+        message: `Someone here is already called ${name}.`,
+        key: "reject.nameTaken",
+        params: { name },
+      };
     }
     return {
       ok: true,
@@ -173,6 +198,7 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
         room.status === "ended"
           ? "This game has already finished."
           : "This game has already started.",
+      key: room.status === "ended" ? "reject.alreadyFinished" : "reject.alreadyStarted",
     };
   }
 
@@ -181,11 +207,19 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
       ok: false,
       code: "room_full",
       message: `This room is full, ${room.players.length} of ${room.maxPlayers} players.`,
+      key: "reject.roomFull",
+      params: { count: room.players.length, max: room.maxPlayers },
     };
   }
 
   if (nameTaken(room, name)) {
-    return { ok: false, code: "name_taken", message: `Someone here is already called ${name}.` };
+    return {
+      ok: false,
+      code: "name_taken",
+      message: `Someone here is already called ${name}.`,
+      key: "reject.nameTaken",
+      params: { name },
+    };
   }
 
   const joined: RoomPlayer = {
@@ -236,10 +270,20 @@ export function setReady(
   now: number,
 ): RoomResult {
   if (!isMember(room, playerId)) {
-    return { ok: false, code: "not_a_member", message: "You are not in this room." };
+    return {
+      ok: false,
+      code: "not_a_member",
+      message: "You are not in this room.",
+      key: "reject.notAMember",
+    };
   }
   if (room.status !== "lobby") {
-    return { ok: false, code: "already_started", message: "This game has already started." };
+    return {
+      ok: false,
+      code: "already_started",
+      message: "This game has already started.",
+      key: "reject.alreadyStarted",
+    };
   }
 
   return {
@@ -267,10 +311,20 @@ export function setReady(
  */
 export function pickStory(room: Room, playerId: string, story: Story, now: number): RoomResult {
   if (room.hostId !== playerId) {
-    return { ok: false, code: "not_host", message: "Only the host picks the story." };
+    return {
+      ok: false,
+      code: "not_host",
+      message: "Only the host picks the story.",
+      key: "reject.notHostStory",
+    };
   }
   if (room.status !== "lobby") {
-    return { ok: false, code: "already_started", message: "This game has already started." };
+    return {
+      ok: false,
+      code: "already_started",
+      message: "This game has already started.",
+      key: "reject.alreadyStarted",
+    };
   }
 
   return { ok: true, room: { ...room, storyId: story.id, updatedAt: now } };
@@ -287,29 +341,42 @@ export function pickStory(room: Room, playerId: string, story: Story, now: numbe
 export function startBlocker(
   room: Room,
   story: Story | undefined,
-): { code: RoomRejectionCode; message: string } | null {
+): Omit<Refusal<RoomRejectionCode>, "ok"> | null {
   if (room.status !== "lobby") {
-    return { code: "already_started", message: "This game has already started." };
+    return {
+      code: "already_started",
+      message: "This game has already started.",
+      key: "reject.alreadyStarted",
+    };
   }
   if (!story) {
-    return { code: "no_story", message: "Pick a story first." };
+    return { code: "no_story", message: "Pick a story first.", key: "reject.noStory" };
   }
 
   const waitingOn = room.players.filter((p) => !p.ready);
   if (waitingOn.length > 0) {
-    return { code: "not_everyone_ready", message: `Waiting for ${listNames(waitingOn)}.` };
+    return {
+      code: "not_everyone_ready",
+      message: `Waiting for ${listNames(waitingOn)}.`,
+      key: "reject.notEveryoneReady",
+      params: { names: listNames(waitingOn) },
+    };
   }
 
   if (room.players.length < story.players.min) {
     return {
       code: "wrong_player_count",
       message: `${story.title} needs at least ${story.players.min} players.`,
+      key: "reject.tooFewPlayers",
+      params: { title: story.title, min: story.players.min },
     };
   }
   if (room.players.length > story.players.max) {
     return {
       code: "wrong_player_count",
       message: `${story.title} takes at most ${story.players.max} players.`,
+      key: "reject.tooManyPlayers",
+      params: { title: story.title, max: story.players.max },
     };
   }
 
@@ -337,7 +404,12 @@ export type StartGameInput = {
  */
 export function startGame({ room, playerId, story, seed, now }: StartGameInput): RoomResult {
   if (room.hostId !== playerId) {
-    return { ok: false, code: "not_host", message: "Only the host can start the game." };
+    return {
+      ok: false,
+      code: "not_host",
+      message: "Only the host can start the game.",
+      key: "reject.notHostStart",
+    };
   }
 
   const blocker = startBlocker(room, story);
@@ -380,7 +452,12 @@ export function setCharacter(
   now: number,
 ): RoomResult {
   if (!isMember(room, playerId)) {
-    return { ok: false, code: "not_a_member", message: "You are not in this room." };
+    return {
+      ok: false,
+      code: "not_a_member",
+      message: "You are not in this room.",
+      key: "reject.notAMember",
+    };
   }
 
   const dressed: Character = normalizeCharacter(character);
@@ -406,10 +483,20 @@ export function setTurnTimer(
   now: number,
 ): RoomResult {
   if (room.hostId !== playerId) {
-    return { ok: false, code: "not_host", message: "Only the host sets the turn timer." };
+    return {
+      ok: false,
+      code: "not_host",
+      message: "Only the host sets the turn timer.",
+      key: "reject.notHostTimer",
+    };
   }
   if (!TURN_TIMERS.includes(seconds as TurnTimer)) {
-    return { ok: false, code: "invalid_timer", message: "Pick off, 60 or 90 seconds." };
+    return {
+      ok: false,
+      code: "invalid_timer",
+      message: "Pick off, 60 or 90 seconds.",
+      key: "reject.invalidTimer",
+    };
   }
 
   const turnTimer = seconds as TurnTimer;

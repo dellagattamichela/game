@@ -18,6 +18,8 @@ import { useCallback, useMemo, useState } from "react";
 import {
   applyAction,
   createGame,
+  entryLabel,
+  pendingView,
   resolveEnding,
   sceneView,
   spotlightPlayer,
@@ -26,14 +28,19 @@ import { hashString, newSeed } from "@/engine/rng";
 import { STORIES, requireStory } from "@/stories";
 import type { Action, GameState, PlayerState, SceneMode, Story } from "@/engine/types";
 import { CharacterPortrait } from "./character-portrait";
+import { LanguagePicker } from "./language-picker";
+import { translator, type Locale, type Translate } from "@/i18n";
 import { Minigame } from "./minigames";
 import { TurnAnnouncement } from "./turn-announcement";
 
 const DEFAULT_NAMES = ["Ada", "Bo", "Cy", "Di"];
 
-export function Prototype() {
+export function Prototype({ locale }: { locale: Locale }) {
+  const t = translator(locale);
   const [storyId, setStoryId] = useState(STORIES[0].id);
-  const story = useMemo(() => requireStory(storyId), [storyId]);
+  // In the reader's language: the rules are identical either way, so the
+  // prototype can simply run the translated copy.
+  const story = useMemo(() => requireStory(storyId, locale), [storyId, locale]);
   const [names, setNames] = useState(DEFAULT_NAMES);
   const [state, setState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +86,8 @@ export function Prototype() {
         names={names}
         onNames={setNames}
         onStart={start}
+        locale={locale}
+        t={t}
       />
     );
   }
@@ -90,7 +99,7 @@ export function Prototype() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <TopBar story={story} state={state} onReset={() => setState(null)} />
+      <TopBar story={story} state={state} onReset={() => setState(null)} t={t} />
 
       <Stage
         story={story}
@@ -98,6 +107,7 @@ export function Prototype() {
         background={story.scenes[state.sceneId].background}
         canGive={state.phase === "scene" && !announcing}
         dispatch={dispatch}
+        t={t}
       />
 
       {error && (
@@ -112,6 +122,7 @@ export function Prototype() {
         mode={view.mode}
         isCrisis={view.isCrisis}
         dispatch={dispatch}
+        t={t}
       />
 
       {announcing && (
@@ -121,6 +132,7 @@ export function Prototype() {
           mode={view.mode}
           isCrisis={view.isCrisis}
           onDone={dismissAnnouncement}
+          t={t}
         />
       )}
     </div>
@@ -136,6 +148,8 @@ function Setup({
   names,
   onNames,
   onStart,
+  locale,
+  t,
 }: {
   story: Story;
   storyId: string;
@@ -143,16 +157,22 @@ function Setup({
   names: string[];
   onNames: (names: string[]) => void;
   onStart: () => void;
+  locale: Locale;
+  t: Translate;
 }) {
+  const stories = STORIES.map((english) => requireStory(english.id, locale));
   const wrongCount = names.length < story.players.min || names.length > story.players.max;
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-4 p-6">
-      <h1 className="text-2xl font-bold">Pilot Season</h1>
+      <div className="flex items-baseline justify-between gap-2">
+        <h1 className="text-2xl font-bold">Pilot Season</h1>
+        <LanguagePicker locale={locale} label={t("language.label")} />
+      </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-semibold">Story</legend>
-        {STORIES.map((s) => (
+        <legend className="mb-2 text-sm font-semibold">{t("lobby.story")}</legend>
+        {stories.map((s) => (
           <button
             key={s.id}
             type="button"
@@ -162,24 +182,26 @@ function Setup({
             <span className="block">{s.title}</span>
             <span className="block text-xs font-normal opacity-70">{s.hook}</span>
             <span className="block text-xs font-normal opacity-50">
-              {Object.keys(s.scenes).length} scenes
-              {s.clues ? ` · ${Object.keys(s.clues).length} clues` : ""} · {s.endings.length} endings
+              {t("story.counts.scenes", { count: Object.keys(s.scenes).length })}
+              {s.clues ? ` · ${t("story.counts.clues", { count: Object.keys(s.clues).length })}` : ""}
+              {" · "}
+              {t("story.counts.endings", { count: s.endings.length })}
             </span>
           </button>
         ))}
       </fieldset>
 
-      <p className="text-sm opacity-70">Everyone starts with {story.startingStars} ⭐.</p>
+      <p className="text-sm opacity-70">{t("proto.startingStars", { stars: story.startingStars })}</p>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-semibold">
-          Players ({story.players.min}–{story.players.max})
+          {t("story.counts.players", { min: story.players.min, max: story.players.max })}
         </legend>
         {names.map((name, i) => (
           <div key={i} className="flex items-center gap-2">
             <CharacterPortrait player={{ id: `p${i + 1}`, name }} size={32} />
             <input
-              aria-label={`Player ${i + 1} name`}
+              aria-label={t("proto.playerName", { number: i + 1 })}
               className="flex-1 border px-2 py-1"
               value={name}
               onChange={(e) => onNames(names.map((n, j) => (j === i ? e.target.value : n)))}
@@ -190,7 +212,7 @@ function Setup({
               disabled={names.length <= story.players.min}
               onClick={() => onNames(names.filter((_, j) => j !== i))}
             >
-              Remove
+              {t("proto.remove")}
             </button>
           </div>
         ))}
@@ -203,7 +225,7 @@ function Setup({
           disabled={names.length >= story.players.max}
           onClick={() => onNames([...names, `Player ${names.length + 1}`])}
         >
-          Add player
+          {t("proto.addPlayer")}
         </button>
         <button
           type="button"
@@ -211,18 +233,18 @@ function Setup({
           disabled={wrongCount || names.some((n) => !n.trim())}
           onClick={onStart}
         >
-          Start
+          {t("proto.start")}
         </button>
       </div>
 
       <p className="text-sm opacity-70">
-        Or play it with other devices:{" "}
+        {t("proto.otherDevices")}{" "}
         <Link href="/rooms/new" className="underline">
-          create a room
+          {t("proto.createRoom")}
         </Link>{" "}
         ·{" "}
         <Link href="/join" className="underline">
-          join one
+          {t("proto.joinOne")}
         </Link>
       </p>
     </main>
@@ -233,10 +255,12 @@ function TopBar({
   story,
   state,
   onReset,
+  t,
 }: {
   story: Story;
   state: GameState;
   onReset: () => void;
+  t: Translate;
 }) {
   return (
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
@@ -244,8 +268,8 @@ function TopBar({
         <h1 className="font-bold">{story.title}</h1>
         <p className="text-xs opacity-60">
           {state.phase === "ended"
-            ? `${state.log.length} scenes played`
-            : `scene ${state.sceneId} · ${state.log.length} resolved`}
+            ? t("table.scenesPlayed", { count: state.log.length })
+            : t("table.sceneCounter", { id: state.sceneId, count: state.log.length })}
         </p>
       </div>
       <div className="flex items-center gap-2">
@@ -255,7 +279,7 @@ function TopBar({
           </span>
         ))}
         <button type="button" className="border px-2 py-1 text-xs" onClick={onReset}>
-          Restart
+          {t("proto.restart")}
         </button>
       </div>
     </header>
@@ -276,12 +300,14 @@ function Stage({
   background,
   canGive,
   dispatch,
+  t,
 }: {
   story: Story;
   state: GameState;
   background?: string;
   canGive: boolean;
   dispatch: (a: Action) => void;
+  t: Translate;
 }) {
   const spotlight = spotlightPlayer(state);
   const ended = state.phase === "ended";
@@ -292,7 +318,7 @@ function Stage({
           keeps the empty space reading as "art goes here" rather than as a gap,
           and shows the framing the cast will stand in front of. */}
       <div className="absolute inset-2 flex items-start justify-center border border-dashed opacity-40">
-        <span className="px-2 py-1 text-xs">background: {background ?? "none"}</span>
+        <span className="px-2 py-1 text-xs">{t("table.background", { key: background ?? t("table.none") })}</span>
       </div>
 
       {/* The notebook. An investigation is only legible if the room can see
@@ -300,10 +326,10 @@ function Stage({
       {story.clues && (
         <div className="absolute left-3 top-10 max-h-[70%] w-56 overflow-y-auto text-xs">
           <p className="mb-1 font-semibold uppercase tracking-wide opacity-60">
-            Notebook {state.clues.length}/{Object.keys(story.clues).length}
+            {t("table.notebook", { found: state.clues.length, total: Object.keys(story.clues).length })}
           </p>
           {state.clues.length === 0 ? (
-            <p className="opacity-40">Nothing yet.</p>
+            <p className="opacity-40">{t("table.notebookEmpty")}</p>
           ) : (
             <ul className="flex flex-col gap-1">
               {state.clues.map((id) => (
@@ -341,7 +367,7 @@ function Stage({
                     dispatch({ type: "give", fromId: p.id, toId: spotlight.id, amount: 1 })
                   }
                 >
-                  Give 1 ⭐
+                  {t("table.give")}
                 </button>
               )}
             </li>
@@ -372,12 +398,14 @@ function DialogBox({
   mode,
   isCrisis,
   dispatch,
+  t,
 }: {
   story: Story;
   state: GameState;
   mode: SceneMode;
   isCrisis: boolean;
   dispatch: (a: Action) => void;
+  t: Translate;
 }) {
   const spotlight = spotlightPlayer(state);
   const isGroup = mode === "group";
@@ -396,9 +424,9 @@ function DialogBox({
   const label = attempting
     ? attempting.name
     : state.phase === "ended"
-      ? "The room"
+      ? t("ending.theRoom")
       : isGroup
-        ? "Everyone"
+        ? t("table.everyone")
         : spotlight.name;
 
   return (
@@ -409,11 +437,13 @@ function DialogBox({
         <Speaker players={speakers} label={label} />
         <div className="min-w-0 flex-1">
           {state.phase === "scene" && (
-            <SceneBody story={story} state={state} dispatch={dispatch} />
+            <SceneBody story={story} state={state} dispatch={dispatch} t={t} />
           )}
-          {state.phase === "minigame" && <MinigameBody state={state} dispatch={dispatch} />}
-          {state.phase === "result" && <ResultBody state={state} dispatch={dispatch} />}
-          {state.phase === "ended" && <EndingBody story={story} state={state} />}
+          {state.phase === "minigame" && <MinigameBody state={state} dispatch={dispatch} t={t} />}
+          {state.phase === "result" && (
+            <ResultBody story={story} state={state} dispatch={dispatch} t={t} />
+          )}
+          {state.phase === "ended" && <EndingBody story={story} state={state} t={t} />}
         </div>
       </div>
     </section>
@@ -424,10 +454,12 @@ function SceneBody({
   story,
   state,
   dispatch,
+  t,
 }: {
   story: Story;
   state: GameState;
   dispatch: (a: Action) => void;
+  t: Translate;
 }) {
   const view = sceneView(story, state);
   const byId = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
@@ -435,7 +467,7 @@ function SceneBody({
   return (
     <div className="flex flex-col gap-3">
       {view.isCrisis && (
-        <p className="text-xs font-bold uppercase tracking-widest text-red-600">Crisis</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-red-600">{t("table.crisis")}</p>
       )}
       <p className="leading-relaxed">{view.text}</p>
 
@@ -468,8 +500,8 @@ function SceneBody({
         <>
           <p className="text-sm opacity-70">
             {view.awaitingVotes.length > 0
-              ? `Waiting on ${view.awaitingVotes.map((p) => p.name).join(", ")}.`
-              : "Counting…"}
+              ? t("table.waitingOn", { names: view.awaitingVotes.map((p) => p.name).join(", ") })
+              : t("table.counting")}
           </p>
           <ul className="flex flex-col gap-2">
             {view.choices
@@ -507,7 +539,15 @@ function SceneBody({
   );
 }
 
-function MinigameBody({ state, dispatch }: { state: GameState; dispatch: (a: Action) => void }) {
+function MinigameBody({
+  state,
+  dispatch,
+  t,
+}: {
+  state: GameState;
+  dispatch: (a: Action) => void;
+  t: Translate;
+}) {
   const attempt = state.minigame!;
   const who = state.players.find((p) => p.id === attempt.playerId)!;
   // Seeded from the run, the scene and the choice, so the same attempt always
@@ -517,8 +557,10 @@ function MinigameBody({ state, dispatch }: { state: GameState; dispatch: (a: Act
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm">
-        <strong>{who.name}</strong> only gets one go at this.
-        <span className="ml-2 opacity-60">difficulty {attempt.spec.difficulty}/5</span>
+        {t("table.oneGo", { name: who.name })}
+        <span className="ml-2 opacity-60">
+          {t("table.difficulty", { level: attempt.spec.difficulty })}
+        </span>
       </p>
       <Minigame
         // Remounts per attempt, so a puzzle never inherits the previous one's state.
@@ -533,21 +575,33 @@ function MinigameBody({ state, dispatch }: { state: GameState; dispatch: (a: Act
   );
 }
 
-function ResultBody({ state, dispatch }: { state: GameState; dispatch: (a: Action) => void }) {
+function ResultBody({
+  story,
+  state,
+  dispatch,
+  t,
+}: {
+  story: Story;
+  state: GameState;
+  dispatch: (a: Action) => void;
+  t: Translate;
+}) {
   const pending = state.pending!;
+  // Resolved here rather than read off the state: the state is language-free.
+  const said = pendingView(story, state);
   const byId = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
   const deltas = Object.entries(pending.deltas).filter(([, n]) => n !== 0);
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm opacity-60">{pending.label}</p>
-      {pending.text && <p className="leading-relaxed">{pending.text}</p>}
+      <p className="text-sm opacity-60">{said?.label}</p>
+      {said?.text ? <p className="leading-relaxed">{said.text}</p> : null}
 
       {pending.gifts.length > 0 && (
         <ul className="text-sm opacity-70">
           {pending.gifts.map((g, i) => (
             <li key={i}>
-              {byId[g.fromId]} gave {g.amount} ⭐ to {byId[g.toId]}
+              {t("table.gave", { from: byId[g.fromId], amount: g.amount, to: byId[g.toId] })}
             </li>
           ))}
         </ul>
@@ -571,20 +625,21 @@ function ResultBody({ state, dispatch }: { state: GameState; dispatch: (a: Actio
               : "border-red-600 text-red-600"
           }`}
         >
-          {pending.minigame.passed ? "Passed." : "Failed."}
+          {pending.minigame.passed ? t("table.passed") : t("table.failed")}
         </p>
       )}
 
       {pending.cluesFound.length > 0 && (
         <p className="border border-sky-600 px-3 py-1 text-sm text-sky-700">
-          {pending.cluesFound.length === 1 ? "Clue found" : `${pending.cluesFound.length} clues found`}
-          {" — added to the notebook."}
+          {pending.cluesFound.length === 1
+            ? t("table.clueFound")
+            : t("table.cluesFound", { count: pending.cluesFound.length })}
         </p>
       )}
 
       {pending.mishapAdded && (
         <p className="border border-amber-600 px-3 py-1 text-sm text-amber-700">
-          Mishap collected.
+          {t("table.mishapCollected")}
         </p>
       )}
 
@@ -593,27 +648,27 @@ function ResultBody({ state, dispatch }: { state: GameState; dispatch: (a: Actio
         className="self-start border-2 px-4 py-1 font-semibold"
         onClick={() => dispatch({ type: "continue", playerId: state.players[0].id })}
       >
-        {pending.next ? "Next scene" : "See how it went"}
+        {pending.next ? t("table.nextScene") : t("table.seeHowItWent")}
       </button>
     </div>
   );
 }
 
-function EndingBody({ story, state }: { story: Story; state: GameState }) {
+function EndingBody({ story, state, t }: { story: Story; state: GameState; t: Translate }) {
   const ending = story.endings.find((e) => e.id === state.endingId) ?? resolveEnding(story, state);
   const byId = Object.fromEntries(state.players.map((p) => [p.id, p.name]));
 
   return (
     <div className="flex max-h-[45vh] flex-col gap-3 overflow-y-auto">
       <div>
-        <p className="text-xs uppercase tracking-widest opacity-60">Ending</p>
+        <p className="text-xs uppercase tracking-widest opacity-60">{t("ending.label")}</p>
         <h2 className="text-xl font-bold">{ending.title}</h2>
       </div>
       {ending.text && <p className="text-sm leading-relaxed">{ending.text}</p>}
 
       {state.mishaps.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold">Mishaps collected</h3>
+          <h3 className="text-sm font-semibold">{t("ending.mishaps")}</h3>
           <ul className="list-inside list-disc text-sm opacity-80">
             {state.mishaps.map((id) => (
               <li key={id}>{story.mishaps?.[id]?.title ?? id}</li>
@@ -623,11 +678,11 @@ function EndingBody({ story, state }: { story: Story; state: GameState }) {
       )}
 
       <div>
-        <h3 className="text-sm font-semibold">Recap</h3>
+        <h3 className="text-sm font-semibold">{t("ending.recap")}</h3>
         <ol className="list-inside list-decimal text-sm opacity-80">
           {state.log.map((entry, i) => (
             <li key={i}>
-              {entry.label}
+              {entryLabel(story, state, entry)}
               <span className="opacity-60">
                 {" "}
                 — {entry.deciderIds.map((id) => byId[id]).join(", ")}

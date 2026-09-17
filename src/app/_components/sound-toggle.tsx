@@ -7,9 +7,10 @@
  * used or a cue is played.
  */
 import { useState } from "react";
+import type { Translate } from "@/i18n";
 import { isMuted, playCue, setMuted } from "./sound";
 
-export function SoundToggle() {
+export function SoundToggle({ t }: { t: Translate }) {
   const [muted, setLocal] = useState(false);
 
   function toggle() {
@@ -27,7 +28,7 @@ export function SoundToggle() {
       aria-pressed={muted}
       className="text-xs underline opacity-60"
     >
-      {muted ? "Sound off" : "Sound on"}
+      {muted ? t("sound.off") : t("sound.on")}
     </button>
   );
 }

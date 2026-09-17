@@ -13,6 +13,7 @@
  */
 import { useEffect } from "react";
 import type { PlayerState } from "@/engine/types";
+import type { Translate } from "@/i18n";
 import { CharacterPortrait } from "./character-portrait";
 
 export const ANNOUNCEMENT_MS = 1900;
@@ -23,12 +24,14 @@ export function TurnAnnouncement({
   mode,
   isCrisis,
   onDone,
+  t,
 }: {
   spotlight: PlayerState;
   cast: PlayerState[];
   mode: "spotlight" | "group";
   isCrisis: boolean;
   onDone: () => void;
+  t: Translate;
 }) {
   useEffect(() => {
     const timer = setTimeout(onDone, ANNOUNCEMENT_MS);
@@ -47,7 +50,7 @@ export function TurnAnnouncement({
       className="fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center gap-4 bg-black/85 text-white"
     >
       {isCrisis && (
-        <p className="text-sm font-bold uppercase tracking-[0.3em] text-red-500">Crisis</p>
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-red-500">{t("table.crisis")}</p>
       )}
 
       <div className="flex gap-2">
@@ -59,9 +62,9 @@ export function TurnAnnouncement({
       </div>
 
       <p className="text-3xl font-bold">
-        {isGroup ? "Everyone votes" : `It's ${spotlight.name}'s turn`}
+        {isGroup ? t("announce.everyoneVotes") : t("announce.turn", { name: spotlight.name })}
       </p>
-      <p className="text-xs uppercase tracking-widest opacity-50">tap to skip</p>
+      <p className="text-xs uppercase tracking-widest opacity-50">{t("announce.tapToSkip")}</p>
     </div>
   );
 }

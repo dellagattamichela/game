@@ -13,12 +13,26 @@ import type { GameState, LogEntry, PlayerState } from "./types";
 
 export type Award = {
   id: string;
-  title: string;
-  /** Ready to display: "4 ⭐" or "2 scenes". */
-  detail: string;
+  /**
+   * The score, as a number and the kind of thing it counts — not as a
+   * sentence. "2 mishaps" is a translation's problem, and which of "mishap"
+   * and "mishaps" applies is decided here because here is where the count is.
+   */
+  detail: { unit: AwardUnit; count: number };
   /** More than one when the run ends in a tie. Never empty. */
   playerIds: string[];
 };
+
+export type AwardUnit =
+  | "stars"
+  | "mishap"
+  | "mishaps"
+  | "clue"
+  | "clues"
+  | "passed"
+  | "failed"
+  | "scene"
+  | "scenes";
 
 type Tally = Record<string, number>;
 
@@ -42,7 +56,7 @@ function winners(tally: Tally, players: PlayerState[]): { ids: string[]; score: 
   return { ids, score: best };
 }
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const plural = (n: number, one: AwardUnit, many: AwardUnit): AwardUnit => (n === 1 ? one : many);
 
 export function awards(state: GameState): Award[] {
   const { players, log } = state;
@@ -70,30 +84,21 @@ export function awards(state: GameState): Award[] {
 
   const held: Tally = Object.fromEntries(players.map((p) => [p.id, p.stars]));
 
-  const candidates: { id: string; title: string; tally: Tally; detail: (n: number) => string }[] = [
-    { id: "generous", title: "Most Stars given away", tally: given, detail: (n) => `${n} ⭐` },
-    { id: "spender", title: "Biggest spender", tally: spent, detail: (n) => `${n} ⭐` },
-    {
-      id: "chaos",
-      title: "Caused the most mishaps",
-      tally: mishaps,
-      detail: (n) => plural(n, "mishap"),
-    },
-    { id: "detective", title: "Found the most clues", tally: clues, detail: (n) => plural(n, "clue") },
-    { id: "steady", title: "Steadiest hands", tally: passed, detail: (n) => `${n} passed` },
-    { id: "fumbler", title: "Fumbled the most", tally: failed, detail: (n) => `${n} failed` },
-    {
-      id: "driver",
-      title: "Made the most calls",
-      tally: decisions,
-      detail: (n) => plural(n, "scene"),
-    },
-    { id: "hoarder", title: "Ended with the most Stars", tally: held, detail: (n) => `${n} ⭐` },
+  const candidates: { id: string; tally: Tally; unit: (n: number) => AwardUnit }[] = [
+    { id: "generous", tally: given, unit: () => "stars" },
+    { id: "spender", tally: spent, unit: () => "stars" },
+    { id: "chaos", tally: mishaps, unit: (n) => plural(n, "mishap", "mishaps") },
+    { id: "detective", tally: clues, unit: (n) => plural(n, "clue", "clues") },
+    { id: "steady", tally: passed, unit: () => "passed" },
+    { id: "fumbler", tally: failed, unit: () => "failed" },
+    { id: "driver", tally: decisions, unit: (n) => plural(n, "scene", "scenes") },
+    { id: "hoarder", tally: held, unit: () => "stars" },
   ];
 
-  return candidates.flatMap(({ id, title, tally, detail }) => {
+  return candidates.flatMap(({ id, tally, unit }) => {
     const won = winners(tally, players);
-    return won ? [{ id, title, detail: detail(won.score), playerIds: won.ids }] : [];
+    if (!won) return [];
+    return [{ id, detail: { unit: unit(won.score), count: won.score }, playerIds: won.ids }];
   });
 }
 

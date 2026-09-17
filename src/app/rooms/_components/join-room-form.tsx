@@ -11,10 +11,12 @@ import { useActionState } from "react";
 import { joinRoomAction, type JoinRoomState } from "../actions";
 import { CODE_LENGTH, MAX_CODE_LENGTH } from "@/rooms/code";
 import { MAX_NAME_LENGTH } from "@/rooms/types";
+import { translator, type Locale } from "@/i18n";
 
 const EMPTY: JoinRoomState = { error: null, values: { code: "", name: "" } };
 
-export function JoinRoomForm({ fixedCode }: { fixedCode?: string }) {
+export function JoinRoomForm({ fixedCode, locale }: { fixedCode?: string; locale: Locale }) {
+  const t = translator(locale);
   const [state, action, pending] = useActionState(joinRoomAction, EMPTY);
 
   return (
@@ -23,7 +25,7 @@ export function JoinRoomForm({ fixedCode }: { fixedCode?: string }) {
         <input type="hidden" name="code" value={fixedCode} />
       ) : (
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-semibold">Invite code</span>
+          <span className="text-sm font-semibold">{t("form.inviteCode")}</span>
           <input
             name="code"
             required
@@ -39,7 +41,7 @@ export function JoinRoomForm({ fixedCode }: { fixedCode?: string }) {
       )}
 
       <label className="flex flex-col gap-1">
-        <span className="text-sm font-semibold">Your name</span>
+        <span className="text-sm font-semibold">{t("form.yourName")}</span>
         <input
           name="name"
           required
@@ -52,7 +54,7 @@ export function JoinRoomForm({ fixedCode }: { fixedCode?: string }) {
 
       {state.error ? (
         <p role="alert" className="border border-amber-600 px-2 py-1 text-sm text-amber-700">
-          {state.error}
+          {t(state.error.key, state.error.params)}
         </p>
       ) : null}
 
@@ -61,7 +63,7 @@ export function JoinRoomForm({ fixedCode }: { fixedCode?: string }) {
         disabled={pending}
         className="border-2 px-4 py-2 font-semibold disabled:opacity-40"
       >
-        {pending ? "Knocking…" : "Join room"}
+        {pending ? t("form.knocking") : t("form.joinRoom")}
       </button>
     </form>
   );

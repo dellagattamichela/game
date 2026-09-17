@@ -12,6 +12,7 @@
  * and `game` stays null until multiplayer turns (stage 4).
  */
 import type { Character } from "@/characters/types";
+import type { MessageKey, Params } from "@/i18n";
 import type { GameState, RejectionCode } from "@/engine/types";
 
 /** 2 is the smallest group a story is written for; 6 is where waiting starts to hurt. */
@@ -123,9 +124,21 @@ export type RoomRejectionCode =
  * Mirrors the engine's `ActionResult`: a typed rejection rather than a throw,
  * so a route handler can map it to a status and the UI can phrase it.
  */
-export type RoomResult =
-  | { ok: true; room: Room }
-  | { ok: false; code: RoomRejectionCode; message: string };
+/**
+ * A refusal carries three things: a code for the caller to branch on, the
+ * English sentence for a log or a test, and the key and holes needed to say
+ * the same thing in the reader's language. The sentence is not the message —
+ * it is a copy of it in one language, and the key is the message.
+ */
+export type Refusal<Code> = {
+  ok: false;
+  code: Code;
+  message: string;
+  key: MessageKey;
+  params?: Params;
+};
+
+export type RoomResult = { ok: true; room: Room } | Refusal<RoomRejectionCode>;
 
 /**
  * The result of playing a scene, which can be refused by either layer: by the
@@ -138,4 +151,4 @@ export type RoomResult =
  */
 export type RoomActionResult =
   | { ok: true; room: Room }
-  | { ok: false; code: RoomRejectionCode | RejectionCode; message: string };
+  | Refusal<RoomRejectionCode | RejectionCode>;

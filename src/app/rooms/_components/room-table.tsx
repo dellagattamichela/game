@@ -31,7 +31,8 @@ import type { Character } from "@/characters/types";
 import { hashString } from "@/engine/rng";
 import type { GameState } from "@/engine/types";
 import type { SceneView, SpeakerView } from "@/engine/engine";
-import { playAction, type PlayInput } from "../actions";
+import { translator, type Locale, type Translate } from "@/i18n";
+import { playAction, type ActionError, type PlayInput } from "../actions";
 import { downloadEndingCard } from "./ending-card";
 
 /** Story text the table needs but the engine state does not carry. */
@@ -59,6 +60,8 @@ export function RoomTable({
   chrome,
   characters,
   turnEndsAt,
+  locale,
+  said,
 }: {
   code: string;
   myId: string;
@@ -68,8 +71,12 @@ export function RoomTable({
   characters: Record<string, Character>;
   /** Epoch ms the current decision runs out, or null when nothing is timed. */
   turnEndsAt: number | null;
+  locale: Locale;
+  /** The result beat, resolved server-side in this reader's language. */
+  said: { label: string; text: string } | null;
 }) {
-  const [error, setError] = useState<string | null>(null);
+  const t = translator(locale);
+  const [error, setError] = useState<ActionError>(null);
   const [pending, startTransition] = useTransition();
 
   function play(input: PlayInput) {
@@ -92,7 +99,7 @@ export function RoomTable({
 
   return (
     <div className="flex h-dvh flex-col">
-      <TopBar game={game} chrome={chrome} turnEndsAt={turnEndsAt} />
+      <TopBar game={game} chrome={chrome} turnEndsAt={turnEndsAt} t={t} />
 
       <Stage
         game={game}
@@ -102,11 +109,12 @@ export function RoomTable({
         spotlightId={view.spotlight.id}
         canGive={game.phase === "scene" && !pending && !announcing}
         onGive={(toId) => play({ kind: "give", toId, amount: 1 })}
+        t={t}
       />
 
       {error ? (
         <p role="alert" className="mx-auto w-full max-w-4xl px-4 pb-2 text-sm text-red-600">
-          {error}
+          {t(error.key, error.params)}
         </p>
       ) : null}
 
@@ -119,6 +127,8 @@ export function RoomTable({
         isSpotlight={isSpotlight}
         busy={pending}
         play={play}
+        t={t}
+        said={said}
       />
 
       {announcing ? (
@@ -128,6 +138,7 @@ export function RoomTable({
           mode={view.mode}
           isCrisis={view.isCrisis}
           onDone={() => setAnnounced(game.sceneId)}
+          t={t}
         />
       ) : null}
     </div>
@@ -138,10 +149,12 @@ function TopBar({
   game,
   chrome,
   turnEndsAt,
+  t,
 }: {
   game: GameState;
   chrome: StoryChrome;
   turnEndsAt: number | null;
+  t: Translate;
 }) {
   return (
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
@@ -149,18 +162,18 @@ function TopBar({
         <h1 className="font-bold">{chrome.title}</h1>
         <p className="text-xs opacity-60">
           {game.phase === "ended"
-            ? `${game.log.length} scenes played`
-            : `scene ${game.sceneId} · ${game.log.length} resolved`}
+            ? t("table.scenesPlayed", { count: game.log.length })
+            : t("table.sceneCounter", { id: game.sceneId, count: game.log.length })}
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <TurnClock endsAt={turnEndsAt} />
+        <TurnClock endsAt={turnEndsAt} t={t} />
         {game.mishaps.map((id) => (
           <span key={id} className="border border-amber-600 px-2 py-0.5 text-xs text-amber-700">
             {chrome.mishaps[id] ?? id}
           </span>
         ))}
-        <SoundToggle />
+        <SoundToggle t={t} />
       </div>
     </header>
   );
@@ -174,6 +187,7 @@ function Stage({
   spotlightId,
   canGive,
   onGive,
+  t,
 }: {
   game: GameState;
   chrome: StoryChrome;
@@ -182,6 +196,7 @@ function Stage({
   spotlightId: string;
   canGive: boolean;
   onGive: (toId: string) => void;
+  t: Translate;
 }) {
   const me = game.players.find((p) => p.id === myId);
   const ended = game.phase === "ended";
@@ -191,7 +206,9 @@ function Stage({
       {/* Backgrounds are stage 6 art. Filling the stage with the placeholder
           keeps the empty space reading as "art goes here" rather than as a gap. */}
       <div className="absolute inset-2 flex items-start justify-center border border-dashed opacity-40">
-        <span className="px-2 py-1 text-xs">background: {chrome.background ?? "none"}</span>
+        <span className="px-2 py-1 text-xs">
+          {t("table.background", { key: chrome.background ?? t("table.none") })}
+        </span>
       </div>
 
       {/* The notebook. An investigation is only legible if the room can see
@@ -199,10 +216,10 @@ function Stage({
       {chrome.clues ? (
         <div className="absolute left-3 top-10 max-h-[70%] w-56 overflow-y-auto text-xs">
           <p className="mb-1 font-semibold uppercase tracking-wide opacity-60">
-            Notebook {game.clues.length}/{chrome.clueCount}
+            {t("table.notebook", { found: game.clues.length, total: chrome.clueCount })}
           </p>
           {game.clues.length === 0 ? (
-            <p className="opacity-40">Nothing yet.</p>
+            <p className="opacity-40">{t("table.notebookEmpty")}</p>
           ) : (
             <ul className="flex flex-col gap-1">
               {game.clues.map((id) => (
@@ -232,7 +249,7 @@ function Stage({
               />
               <span className={`text-sm ${isSpotlight ? "font-bold" : ""}`}>
                 {player.name}
-                {player.id === myId ? <span className="opacity-60"> (you)</span> : null}{" "}
+                {player.id === myId ? <span className="opacity-60"> {t("lobby.you")}</span> : null}{" "}
                 <span className="tabular-nums opacity-70">{player.stars} ⭐</span>
               </span>
               {/* Only your own seat gets a button: this is one player's screen,
@@ -244,7 +261,7 @@ function Stage({
                   disabled={!canGive || (me?.stars ?? 0) < 1}
                   onClick={() => onGive(spotlightId)}
                 >
-                  Give 1 ⭐
+                  {t("table.give")}
                 </button>
               ) : null}
             </li>
@@ -259,9 +276,11 @@ function Stage({
 function Speaker({
   speaker,
   characters,
+  t,
 }: {
   speaker: SpeakerView;
   characters: Record<string, Character>;
+  t: Translate;
 }) {
   if (speaker.kind === "cast") {
     return (
@@ -278,7 +297,7 @@ function Speaker({
   }
 
   const players = speaker.kind === "everyone" ? speaker.players : [speaker.player];
-  const label = speaker.kind === "everyone" ? "Everyone" : speaker.player.name;
+  const label = speaker.kind === "everyone" ? t("table.everyone") : speaker.player.name;
 
   return (
     <div className="flex shrink-0 flex-col items-center gap-1">
@@ -306,6 +325,8 @@ function DialogBox({
   isSpotlight,
   busy,
   play,
+  t,
+  said,
 }: {
   game: GameState;
   view: SceneView;
@@ -315,6 +336,8 @@ function DialogBox({
   isSpotlight: boolean;
   busy: boolean;
   play: (input: PlayInput) => void;
+  t: Translate;
+  said: { label: string; text: string } | null;
 }) {
   // During a skill test the attempting player speaks, whatever the scene says,
   // and the ending belongs to the whole room.
@@ -334,17 +357,31 @@ function DialogBox({
       }`}
     >
       <div className="mx-auto flex w-full max-w-4xl gap-4">
-        <Speaker speaker={speaker} characters={characters} />
+        <Speaker speaker={speaker} characters={characters} t={t} />
         <div className="min-w-0 flex-1">
           {game.phase === "scene" ? (
-            <Scene game={game} view={view} myId={myId} isSpotlight={isSpotlight} busy={busy} play={play} />
+            <Scene
+              game={game}
+              view={view}
+              myId={myId}
+              isSpotlight={isSpotlight}
+              busy={busy}
+              play={play}
+              t={t}
+            />
           ) : null}
-          {game.phase === "minigame" ? <SkillTest game={game} myId={myId} play={play} /> : null}
+          {game.phase === "minigame" ? <SkillTest game={game} myId={myId} play={play} t={t} /> : null}
           {game.phase === "result" ? (
-            <Result game={game} busy={busy} onContinue={() => play({ kind: "continue" })} />
+            <Result
+              game={game}
+              busy={busy}
+              onContinue={() => play({ kind: "continue" })}
+              t={t}
+              said={said}
+            />
           ) : null}
           {game.phase === "ended" ? (
-            <Ending game={game} chrome={chrome} characters={characters} />
+            <Ending game={game} chrome={chrome} characters={characters} t={t} />
           ) : null}
         </div>
       </div>
@@ -359,6 +396,7 @@ function Scene({
   isSpotlight,
   busy,
   play,
+  t,
 }: {
   game: GameState;
   view: SceneView;
@@ -366,6 +404,7 @@ function Scene({
   isSpotlight: boolean;
   busy: boolean;
   play: (input: PlayInput) => void;
+  t: Translate;
 }) {
   const byId = Object.fromEntries(game.players.map((p) => [p.id, p.name]));
   // Hidden choices are not rendered at all: a Star gate is shown locked with
@@ -375,14 +414,14 @@ function Scene({
   return (
     <div className="flex flex-col gap-3">
       {view.isCrisis ? (
-        <p className="text-xs font-bold uppercase tracking-widest text-red-600">Crisis</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-red-600">{t("table.crisis")}</p>
       ) : null}
       <p className="leading-relaxed">{view.text}</p>
 
       {view.mode === "spotlight" ? (
         <>
           <p className="text-sm opacity-70">
-            {isSpotlight ? "Your call." : `${view.spotlight.name} is deciding.`}
+            {isSpotlight ? t("table.yourCall") : t("table.deciding", { name: view.spotlight.name })}
           </p>
           <ul className="flex flex-col gap-1">
             {choices.map((choice) => (
@@ -404,15 +443,15 @@ function Scene({
           </ul>
           {/* Said out loud, because the answer is usually "someone hand them a Star". */}
           {isSpotlight && choices.some((c) => c.shortfall > 0) ? (
-            <p className="text-sm opacity-70">Someone else may have a Star to spare.</p>
+            <p className="text-sm opacity-70">{t("table.starSpare")}</p>
           ) : null}
         </>
       ) : (
         <>
           <p className="text-sm opacity-70">
             {view.awaitingVotes.length > 0
-              ? `Waiting on ${view.awaitingVotes.map((p) => p.name).join(", ")}.`
-              : "Counting…"}
+              ? t("table.waitingOn", { names: view.awaitingVotes.map((p) => p.name).join(", ") })
+              : t("table.counting")}
           </p>
           <ul className="flex flex-col gap-2">
             {choices.map((choice) => (
@@ -446,10 +485,12 @@ function SkillTest({
   game,
   myId,
   play,
+  t,
 }: {
   game: GameState;
   myId: string;
   play: (input: PlayInput) => void;
+  t: Translate;
 }) {
   const attempt = game.minigame;
   if (!attempt) return null;
@@ -463,8 +504,10 @@ function SkillTest({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm">
-        <strong>{who?.name}</strong> only gets one go at this.
-        <span className="ml-2 opacity-60">difficulty {attempt.spec.difficulty}/5</span>
+        {t("table.oneGo", { name: who?.name ?? "" })}
+        <span className="ml-2 opacity-60">
+          {t("table.difficulty", { level: attempt.spec.difficulty })}
+        </span>
       </p>
       {mine ? (
         <Minigame
@@ -475,7 +518,7 @@ function SkillTest({
           onDone={(passed) => play({ kind: "minigame", passed })}
         />
       ) : (
-        <p className="opacity-70">Hold your breath.</p>
+        <p className="opacity-70">{t("table.holdBreath")}</p>
       )}
     </div>
   );
@@ -485,10 +528,14 @@ function Result({
   game,
   busy,
   onContinue,
+  t,
+  said,
 }: {
   game: GameState;
   busy: boolean;
   onContinue: () => void;
+  t: Translate;
+  said: { label: string; text: string } | null;
 }) {
   const pending = game.pending;
   if (!pending) return null;
@@ -498,14 +545,18 @@ function Result({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm opacity-60">{pending.label}</p>
-      {pending.text ? <p className="leading-relaxed">{pending.text}</p> : null}
+      <p className="text-sm opacity-60">{said?.label}</p>
+      {said?.text ? <p className="leading-relaxed">{said.text}</p> : null}
 
       {pending.gifts.length > 0 ? (
         <ul className="text-sm opacity-70">
           {pending.gifts.map((gift, i) => (
             <li key={i}>
-              {byId[gift.fromId]} gave {gift.amount} ⭐ to {byId[gift.toId]}
+              {t("table.gave", {
+                from: byId[gift.fromId],
+                amount: gift.amount,
+                to: byId[gift.toId],
+              })}
             </li>
           ))}
         </ul>
@@ -529,22 +580,21 @@ function Result({
               : "border-red-600 text-red-600"
           }`}
         >
-          {pending.minigame.passed ? "Passed." : "Failed."}
+          {pending.minigame.passed ? t("table.passed") : t("table.failed")}
         </p>
       ) : null}
 
       {pending.cluesFound.length > 0 ? (
         <p className="border border-sky-600 px-3 py-1 text-sm text-sky-700">
           {pending.cluesFound.length === 1
-            ? "Clue found"
-            : `${pending.cluesFound.length} clues found`}
-          {" — added to the notebook."}
+            ? t("table.clueFound")
+            : t("table.cluesFound", { count: pending.cluesFound.length })}
         </p>
       ) : null}
 
       {pending.mishapAdded ? (
         <p className="border border-amber-600 px-3 py-1 text-sm text-amber-700">
-          Mishap collected.
+          {t("table.mishapCollected")}
         </p>
       ) : null}
 
@@ -556,7 +606,7 @@ function Result({
         disabled={busy}
         onClick={onContinue}
       >
-        {pending.next ? "Next scene" : "See how it went"}
+        {pending.next ? t("table.nextScene") : t("table.seeHowItWent")}
       </button>
     </div>
   );
@@ -566,10 +616,12 @@ function Ending({
   game,
   chrome,
   characters,
+  t,
 }: {
   game: GameState;
   chrome: StoryChrome;
   characters: Record<string, Character>;
+  t: Translate;
 }) {
   const cast = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
@@ -583,14 +635,14 @@ function Ending({
       await downloadEndingCard(
         {
           storyTitle: chrome.title,
-          endingTitle: chrome.ending?.title ?? "The end",
+          endingTitle: chrome.ending?.title ?? t("ending.theEnd"),
           names: game.players.map((p) => p.name),
           awards: chrome.awards,
         },
         sprites,
       );
     } catch {
-      setSaveError("This browser would not make the picture.");
+      setSaveError(t("ending.downloadFailed"));
     } finally {
       setSaving(false);
     }
@@ -599,7 +651,7 @@ function Ending({
   return (
     <div className="flex max-h-[45vh] flex-col gap-3 overflow-y-auto">
       <div>
-        <p className="text-xs uppercase tracking-widest opacity-60">Ending</p>
+        <p className="text-xs uppercase tracking-widest opacity-60">{t("ending.label")}</p>
         <h2 className="text-xl font-bold">{chrome.ending?.title}</h2>
       </div>
       {chrome.ending?.text ? (
@@ -620,7 +672,7 @@ function Ending({
 
       {chrome.awards.length > 0 ? (
         <div>
-          <h3 className="text-sm font-semibold">Awards</h3>
+          <h3 className="text-sm font-semibold">{t("ending.awards")}</h3>
           <ul className="flex flex-col gap-1 text-sm">
             {chrome.awards.map((award) => (
               <li key={award.id} className="flex justify-between gap-2 border px-2 py-1">
@@ -637,7 +689,7 @@ function Ending({
 
       {game.mishaps.length > 0 ? (
         <div>
-          <h3 className="text-sm font-semibold">Mishaps collected</h3>
+          <h3 className="text-sm font-semibold">{t("ending.mishaps")}</h3>
           <ul className="list-inside list-disc text-sm opacity-80">
             {game.mishaps.map((id) => (
               <li key={id}>{chrome.mishaps[id] ?? id}</li>
@@ -647,7 +699,7 @@ function Ending({
       ) : null}
 
       <div>
-        <h3 className="text-sm font-semibold">How it went</h3>
+        <h3 className="text-sm font-semibold">{t("ending.howItWent")}</h3>
         <ol className="flex flex-col gap-1 text-sm opacity-80">
           {chrome.recap.map((moment, i) => (
             <li key={i}>
@@ -664,7 +716,7 @@ function Ending({
         disabled={saving}
         onClick={save}
       >
-        {saving ? "Drawing…" : "Download the ending"}
+        {saving ? t("ending.drawing") : t("ending.download")}
       </button>
       {saveError ? (
         <p role="alert" className="text-sm text-amber-700">
@@ -683,7 +735,7 @@ function Ending({
  * timing its own idea of when the scene began. Running out is not this
  * component's business: the next poll asks the server, and the server decides.
  */
-function TurnClock({ endsAt }: { endsAt: number | null }) {
+function TurnClock({ endsAt, t }: { endsAt: number | null; t: Translate }) {
   // The clock reading, not the seconds left: keeping "now" in state and doing
   // the subtraction at render time means nothing is set from inside the effect
   // body, and the server never renders a number the client then disagrees with.
@@ -705,7 +757,7 @@ function TurnClock({ endsAt }: { endsAt: number | null }) {
       // every second of a ninety-second turn.
       aria-live={left <= 10 ? "polite" : "off"}
     >
-      {left > 0 ? `${left}s` : "time"}
+      {left > 0 ? `${left}s` : t("table.timeUp")}
     </span>
   );
 }

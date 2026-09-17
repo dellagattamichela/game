@@ -11,6 +11,7 @@
  * the identical function to predict the outcome. Any impurity here would show up
  * as two players seeing different stories.
  */
+import type { MessageKey, Params } from "@/i18n";
 import { matchesCondition } from "./conditions";
 import { resolveText, type TextContext } from "./text";
 import type {
@@ -251,6 +252,60 @@ export function safeChoiceIndex(story: Story, state: GameState): number {
   return takeable.reduce((best, choice) => (choice.cost < best.cost ? choice : best)).index;
 }
 
+/**
+ * The context a line was written for.
+ *
+ * A log entry is read long after its scene: the spotlight has moved on, so
+ * `{spotlight}` has to resolve to whoever actually decided rather than to
+ * whoever is deciding now. The deciders are in the entry, which is why they
+ * are kept there.
+ */
+function contextFor(state: GameState, entry: LogEntry): TextContext {
+  const index = state.players.findIndex((p) => p.id === entry.deciderIds[0]);
+  return {
+    players: state.players,
+    spotlightIndex: index < 0 ? state.spotlightIndex : index,
+    sceneId: entry.sceneId,
+    seed: state.seed,
+  };
+}
+
+/** What a logged choice was called, in the story you hand in. */
+export function entryLabel(story: Story, state: GameState, entry: LogEntry): string {
+  const choice = story.scenes[entry.sceneId]?.choices[entry.choiceIndex];
+  return choice ? resolveText(choice.label, contextFor(state, entry)) : "";
+}
+
+/**
+ * The result beat, in words.
+ *
+ * Resolved at render rather than stored, so the state a room saves is
+ * language-free and two players can read the same moment in two languages.
+ * The spotlight has not rotated yet during a result, so the current context is
+ * the right one.
+ */
+export function pendingView(
+  story: Story,
+  state: GameState,
+): { label: string; text: string } | null {
+  const pending = state.pending;
+  if (!pending) return null;
+
+  const choice = story.scenes[pending.sceneId]?.choices[pending.choiceIndex];
+  if (!choice) return null;
+
+  const ctx: TextContext = {
+    players: state.players,
+    spotlightIndex: state.spotlightIndex,
+    sceneId: pending.sceneId,
+    seed: state.seed,
+  };
+  const passed = pending.minigame?.passed ?? true;
+  const body = (passed ? choice.result : (choice.failResult ?? choice.result)) ?? "";
+
+  return { label: resolveText(choice.label, ctx), text: resolveText(body, ctx) };
+}
+
 export function totalStars(state: GameState): number {
   return state.players.reduce((sum, p) => sum + p.stars, 0);
 }
@@ -271,15 +326,16 @@ export function resolveEnding(story: Story, state: GameState): Ending {
 // Reducer
 // ---------------------------------------------------------------------------
 
-const reject = (code: RejectionCode, message: string): ActionResult => ({
-  ok: false,
-  code,
-  message,
-});
+const reject = (
+  code: RejectionCode,
+  key: MessageKey,
+  message: string,
+  params?: Params,
+): ActionResult => ({ ok: false, code, message, key, params });
 
 export function applyAction(story: Story, state: GameState, action: Action): ActionResult {
   if (state.phase === "ended") {
-    return reject("already_ended", "The story is over.");
+    return reject("already_ended", "reject.storyOver", "The story is over.");
   }
 
   switch (action.type) {
@@ -301,18 +357,21 @@ function applyGive(
   action: Extract<Action, { type: "give" }>,
 ): ActionResult {
   if (state.phase !== "scene") {
-    return reject("wrong_phase", "Stars can only be given while a scene is open.");
+    return reject("wrong_phase", "reject.giveOutsideScene", "Stars can only be given while a scene is open.");
   }
 
   const from = state.players.find((p) => p.id === action.fromId);
   const to = state.players.find((p) => p.id === action.toId);
-  if (!from || !to) return reject("unknown_player", "That player is not in this room.");
-  if (from.id === to.id) return reject("invalid_gift", "You cannot give Stars to yourself.");
+  if (!from || !to) return reject("unknown_player", "reject.unknownPlayer", "That player is not in this room.");
+  if (from.id === to.id) return reject("invalid_gift", "reject.giveToSelf", "You cannot give Stars to yourself.");
   if (!Number.isInteger(action.amount) || action.amount <= 0) {
-    return reject("invalid_gift", "Give a whole number of Stars, at least 1.");
+    return reject("invalid_gift", "reject.giveAmount", "Give a whole number of Stars, at least 1.");
   }
   if (from.stars < action.amount) {
-    return reject("invalid_gift", `${from.name} only has ${from.stars} ⭐.`);
+    return reject("invalid_gift", "reject.giveTooMany", `${from.name} only has ${from.stars} ⭐.`, {
+      name: from.name,
+      stars: from.stars,
+    });
   }
 
   // Transfers land immediately so the gate unlocks the moment help arrives,
@@ -340,17 +399,17 @@ function applyVote(
   action: Extract<Action, { type: "vote" }>,
 ): ActionResult {
   const scene = currentScene(story, state);
-  if (state.phase !== "scene") return reject("wrong_phase", "There is nothing to vote on.");
+  if (state.phase !== "scene") return reject("wrong_phase", "reject.nothingToVoteOn", "There is nothing to vote on.");
   if (sceneMode(scene) !== "group") {
-    return reject("wrong_phase", "This scene is the spotlight player's call.");
+    return reject("wrong_phase", "reject.spotlightsCall", "This scene is the spotlight player's call.");
   }
   if (!state.players.some((p) => p.id === action.playerId)) {
-    return reject("unknown_player", "That player is not in this room.");
+    return reject("unknown_player", "reject.unknownPlayer", "That player is not in this room.");
   }
   const target = scene.choices[action.choiceIndex];
-  if (!target) return reject("unknown_choice", "That option does not exist.");
+  if (!target) return reject("unknown_choice", "reject.unknownChoice", "That option does not exist.");
   if (!matchesCondition(target.requires, state)) {
-    return reject("unavailable_choice", "The room does not know enough for that yet.");
+    return reject("unavailable_choice", "reject.unavailableChoice", "The room does not know enough for that yet.");
   }
 
   // Re-voting is allowed until the last player commits, so a group can talk it out.
@@ -389,26 +448,31 @@ function applyChoose(
   action: Extract<Action, { type: "choose" }>,
 ): ActionResult {
   const scene = currentScene(story, state);
-  if (state.phase !== "scene") return reject("wrong_phase", "There is nothing to choose.");
+  if (state.phase !== "scene") return reject("wrong_phase", "reject.nothingToChoose", "There is nothing to choose.");
   if (sceneMode(scene) !== "spotlight") {
-    return reject("wrong_phase", "This scene is a group vote.");
+    return reject("wrong_phase", "reject.groupVote", "This scene is a group vote.");
   }
   if (action.playerId !== spotlightPlayer(state).id) {
-    return reject("not_spotlight", "Only the spotlight player picks this scene.");
+    return reject("not_spotlight", "reject.notSpotlight", "Only the spotlight player picks this scene.");
   }
   const choice = scene.choices[action.choiceIndex];
-  if (!choice) return reject("unknown_choice", "That option does not exist.");
+  if (!choice) return reject("unknown_choice", "reject.unknownChoice", "That option does not exist.");
   if (!matchesCondition(choice.requires, state)) {
     // Reachable only from a stale client, but it must be refused server-side:
     // the whole point of hiding an option is that it cannot be taken.
-    return reject("unavailable_choice", "The room does not know enough for that yet.");
+    return reject("unavailable_choice", "reject.unavailableChoice", "The room does not know enough for that yet.");
   }
 
   const scene2 = currentScene(story, state);
   const cost = effectiveCost(story, state, scene2, choice);
   const payer = spotlightPlayer(state);
   if (cost > payer.stars) {
-    return reject("cannot_afford", `${payer.name} needs ${cost - payer.stars} more ⭐ for that.`);
+    return reject(
+      "cannot_afford",
+      "reject.cannotAfford",
+      `${payer.name} needs ${cost - payer.stars} more ⭐ for that.`,
+      { name: payer.name, short: cost - payer.stars },
+    );
   }
 
   if (choice.minigame) {
@@ -460,7 +524,9 @@ function commitChoice(
   if (cost > payer.stars) {
     return reject(
       "cannot_afford",
+      "reject.cannotAfford",
       `${payer.name} needs ${cost - payer.stars} more ⭐ for that.`,
+      { name: payer.name, short: cost - payer.stars },
     );
   }
 
@@ -500,13 +566,11 @@ function commitChoice(
 
   const vars = effects.set ? { ...state.vars, ...effects.set } : state.vars;
 
-  const ctx = textContext(state);
   const attempt = choice.minigame ? { type: choice.minigame.type, passed } : null;
   const entry: LogEntry = {
     sceneId: state.sceneId,
     deciderIds,
     choiceIndex,
-    label: resolveText(choice.label, ctx),
     starsSpent: cost,
     mishapAdded,
     cluesFound,
@@ -527,8 +591,6 @@ function commitChoice(
       pending: {
         sceneId: state.sceneId,
         choiceIndex,
-        label: entry.label,
-        text: resolveText((passed ? choice.result : (choice.failResult ?? choice.result)) ?? "", ctx),
         deltas,
         gifts: state.gifts,
         mishapAdded,
@@ -547,10 +609,10 @@ function applyMinigameResult(
   action: Extract<Action, { type: "minigameResult" }>,
 ): ActionResult {
   if (state.phase !== "minigame" || !state.minigame) {
-    return reject("wrong_phase", "Nobody is attempting anything right now.");
+    return reject("wrong_phase", "reject.noAttempt", "Nobody is attempting anything right now.");
   }
   if (action.playerId !== state.minigame.playerId) {
-    return reject("not_your_minigame", "That attempt belongs to another player.");
+    return reject("not_your_minigame", "reject.notYourAttempt", "That attempt belongs to another player.");
   }
 
   return commitChoice(story, state, state.minigame.choiceIndex, [action.playerId], action.passed);
@@ -558,7 +620,7 @@ function applyMinigameResult(
 
 function applyContinue(story: Story, state: GameState): ActionResult {
   if (state.phase !== "result" || !state.pending) {
-    return reject("wrong_phase", "There is no result to move past.");
+    return reject("wrong_phase", "reject.noResult", "There is no result to move past.");
   }
 
   const { next } = state.pending;

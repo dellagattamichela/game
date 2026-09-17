@@ -47,9 +47,10 @@ npm run scenarios  # coverage report: endings, clues, gates
 
 ```
 src/engine/      the game rules, as a pure reducer
-src/stories/     stories as JSON data
+src/stories/     stories as JSON data, plus a translation per language
 src/rooms/       rooms and invite codes
 src/characters/  the character model and the parts catalog
+src/i18n/        the message catalogue and the language a browser reads in
 src/app/         the UI: the prototype, the lobby, the table
 scripts/         the scenario coverage tool
 ```
@@ -300,6 +301,42 @@ on the way to one face is forty redraws in everyone else's lobby. What you
 build is also kept in this browser, and **My last character** brings it back in
 the next room — a button rather than an automatic load, so it never overwrites
 what you already look like here without being asked.
+
+## Languages
+
+English and Italian, chosen per browser and remembered in `localStorage`.
+Everything a player reads is translated: the interface, the refusals, the
+character parts, the awards, and both stories end to end — 547 lines of prose.
+
+**The choice is stored twice, and that is deliberate.** `localStorage` is where
+it belongs: it is this browser's preference and has nothing to do with any
+room. But the lobby, the scene text and the ending are rendered on the server,
+and a server cannot read `localStorage` — so the same value is mirrored into a
+cookie, which is the only thing a server render can see. `LocaleSync` puts the
+two back in step on load when a cookie has expired out from under a stored
+preference.
+
+**Language is per player, not per room.** Two people at the same table can read
+the same scene in different languages, because nothing about a language reaches
+the engine. That is a property the state had to earn: `PendingResult` and
+`LogEntry` used to carry rendered sentences, and a room would then have shown
+everyone the result beat in whoever-acted's language. They now carry the scene
+and choice they refer to, and `pendingView` and `entryLabel` resolve the words
+at render. A refusal travels the same way — a code to branch on, a key to say
+it with, and the numbers to fill the holes — so `cannot_afford` arrives as a
+key and two parameters rather than as an English sentence.
+
+**A translated story is an overlay, not a second file.** `src/stories/it/*.json`
+maps a dotted path in the English story to the line that replaces it. The
+English file stays the one place structure is decided, so a translation cannot
+add a choice or move a `next`, and it cannot drift: the suite refuses a catalog
+that misses a path, keeps one the story has dropped, or loses a `{spotlight}`
+along the way. The UI catalogue is held to the same standard — English and
+Italian must have exactly the same keys, with exactly the same holes in each
+message.
+
+Adding a language is `LOCALES`, one column in `src/i18n/messages.ts`, and one
+overlay per story. The tests will tell you what you have missed.
 
 ## Writing a story
 

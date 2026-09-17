@@ -6,7 +6,6 @@ const entry = (over: Partial<LogEntry> = {}): LogEntry => ({
   sceneId: "s1",
   deciderIds: ["a"],
   choiceIndex: 0,
-  label: "Did a thing",
   starsSpent: 0,
   mishapAdded: null,
   cluesFound: [],
@@ -44,7 +43,7 @@ describe("awards", () => {
   it("gives nothing away for a run where nothing happened", () => {
     expect(awards(state([entry(), entry()]))).toEqual([
       // Someone still made every call, which is the one thing always true.
-      { id: "driver", title: "Made the most calls", detail: "2 scenes", playerIds: ["a"] },
+      { id: "driver", detail: { unit: "scenes", count: 2 }, playerIds: ["a"] },
     ]);
   });
 
@@ -56,21 +55,20 @@ describe("awards", () => {
 
     expect(byId(awards(state(log)), "generous")).toEqual({
       id: "generous",
-      title: "Most Stars given away",
-      detail: "2 ⭐",
+      detail: { unit: "stars", count: 2 },
       playerIds: ["b"],
     });
   });
 
   it("charges the spend to the player who paid", () => {
     const log = [entry({ deciderIds: ["b"], starsSpent: 5 }), entry({ deciderIds: ["a"], starsSpent: 1 })];
-    expect(byId(awards(state(log)), "spender")).toMatchObject({ detail: "5 ⭐", playerIds: ["b"] });
+    expect(byId(awards(state(log)), "spender")).toMatchObject({ detail: { unit: "stars", count: 5 }, playerIds: ["b"] });
   });
 
   it("blames a mishap on everyone who voted for it", () => {
     const log = [entry({ deciderIds: ["a", "c"], mishapAdded: "cursed" })];
     expect(byId(awards(state(log)), "chaos")).toMatchObject({
-      detail: "1 mishap",
+      detail: { unit: "mishap", count: 1 },
       playerIds: ["a", "c"],
     });
   });
@@ -78,7 +76,7 @@ describe("awards", () => {
   it("counts clues rather than the scenes that held them", () => {
     const log = [entry({ deciderIds: ["c"], cluesFound: ["x", "y", "z"] })];
     expect(byId(awards(state(log)), "detective")).toMatchObject({
-      detail: "3 clues",
+      detail: { unit: "clues", count: 3 },
       playerIds: ["c"],
     });
   });
@@ -91,8 +89,8 @@ describe("awards", () => {
     ];
     const list = awards(state(log));
 
-    expect(byId(list, "steady")).toMatchObject({ detail: "2 passed", playerIds: ["a"] });
-    expect(byId(list, "fumbler")).toMatchObject({ detail: "1 failed", playerIds: ["b"] });
+    expect(byId(list, "steady")).toMatchObject({ detail: { unit: "passed", count: 2 }, playerIds: ["a"] });
+    expect(byId(list, "fumbler")).toMatchObject({ detail: { unit: "failed", count: 1 }, playerIds: ["b"] });
   });
 
   it("shares an award rather than breaking a tie", () => {
@@ -105,7 +103,7 @@ describe("awards", () => {
 
   it("reads the leftover Stars off the players, not the log", () => {
     expect(byId(awards(state([entry()], { a: 1, b: 7, c: 3 })), "hoarder")).toMatchObject({
-      detail: "7 ⭐",
+      detail: { unit: "stars", count: 7 },
       playerIds: ["b"],
     });
   });
@@ -126,25 +124,25 @@ describe("awards", () => {
 describe("highlights", () => {
   it("keeps the scenes where something happened", () => {
     const log = [
-      entry({ label: "Nothing" }),
-      entry({ label: "Paid", starsSpent: 2 }),
-      entry({ label: "Also nothing" }),
-      entry({ label: "Clue", cluesFound: ["x"] }),
+      entry({ sceneId: "nothing" }),
+      entry({ sceneId: "paid", starsSpent: 2 }),
+      entry({ sceneId: "also-nothing" }),
+      entry({ sceneId: "clue", cluesFound: ["x"] }),
     ];
 
-    expect(highlights(state(log)).map((e) => e.label)).toEqual(["Paid", "Clue"]);
+    expect(highlights(state(log)).map((e) => e.sceneId)).toEqual(["paid", "clue"]);
   });
 
   it("falls back to the last scenes when nothing stood out", () => {
-    const log = [entry({ label: "One" }), entry({ label: "Two" }), entry({ label: "Three" })];
-    expect(highlights(state(log), 2).map((e) => e.label)).toEqual(["Two", "Three"]);
+    const log = [entry({ sceneId: "one" }), entry({ sceneId: "two" }), entry({ sceneId: "three" })];
+    expect(highlights(state(log), 2).map((e) => e.sceneId)).toEqual(["two", "three"]);
   });
 
   it("keeps the recap short on a long run", () => {
-    const log = Array.from({ length: 40 }, (_, i) => entry({ label: `S${i}`, starsSpent: 1 }));
+    const log = Array.from({ length: 40 }, (_, i) => entry({ sceneId: `s${i}`, starsSpent: 1 }));
     expect(highlights(state(log))).toHaveLength(6);
     // The end of the run, not the start: what happened last is what is fresh.
-    expect(highlights(state(log)).at(-1)?.label).toBe("S39");
+    expect(highlights(state(log)).at(-1)?.sceneId).toBe("s39");
   });
 
   it("is never empty for a run that played at all", () => {

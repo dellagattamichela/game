@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, createGame, effectiveDifficulty, sceneView } from "./engine";
+import { applyAction, createGame, effectiveDifficulty, pendingView, sceneView } from "./engine";
 import { validateStory } from "./validate";
 import type { Action, GameState, Story } from "./types";
 
@@ -84,7 +84,10 @@ describe("passing", () => {
     const state = passed();
     expect(state.clues).toEqual(["prize"]);
     expect(state.players[0].stars).toBe(3);
-    expect(state.pending).toMatchObject({ text: "It opens.", next: "s2" });
+    expect(state.pending).toMatchObject({ next: "s2" });
+    // The prose is not in the state any more — it is resolved against whichever
+    // language the reader asked for, from the ids the state does keep.
+    expect(pendingView(fixture, state)?.text).toBe("It opens.");
   });
 
   it("reports the attempt on the result beat and in the log", () => {
@@ -110,7 +113,9 @@ describe("failing", () => {
   });
 
   it("uses the failure text and the failure branch", () => {
-    expect(failed().pending).toMatchObject({ text: "The pick snaps.", next: "s3" });
+    const state = failed();
+    expect(state.pending).toMatchObject({ next: "s3" });
+    expect(pendingView(fixture, state)?.text).toBe("The pick snaps.");
   });
 
   it("still moves the story on, so a failed test is never a dead end", () => {

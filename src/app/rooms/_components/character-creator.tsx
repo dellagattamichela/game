@@ -26,7 +26,8 @@ import {
 } from "@/characters/character";
 import type { Group } from "@/characters/character";
 import type { Character, CharacterField } from "@/characters/types";
-import { saveCharacterAction } from "../actions";
+import { saveCharacterAction, type ActionError } from "../actions";
+import { translator, type Locale, type Translate } from "@/i18n";
 
 /** Where this browser remembers the last face its owner built. */
 const REMEMBERED = "pilot-season:character";
@@ -42,15 +43,18 @@ export function CharacterCreator({
   code,
   initial,
   playerName,
+  locale,
 }: {
   code: string;
   initial: Character;
   playerName: string;
+  locale: Locale;
 }) {
+  const t = translator(locale);
   const router = useRouter();
   const [character, setCharacter] = useState(initial);
   const [group, setGroup] = useState<Group>("Body");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActionError>(null);
   const [note, setNote] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
 
@@ -74,13 +78,13 @@ export function CharacterCreator({
     try {
       const saved = localStorage.getItem(REMEMBERED);
       if (!saved) {
-        setNote("Nothing saved in this browser yet — build one and it will be here next time.");
+        setNote(t("creator.nothingSaved"));
         return;
       }
       setCharacter(normalizeCharacter(JSON.parse(saved)));
       setNote(null);
     } catch {
-      setNote("This browser will not let the game remember characters.");
+      setNote(t("creator.storageRefused"));
     }
   }
 
@@ -110,14 +114,14 @@ export function CharacterCreator({
           className="flex-1 border px-3 py-1 text-sm"
           onClick={() => setCharacter(randomCharacter(Math.floor(Math.random() * 0xffffffff)))}
         >
-          Randomize
+          {t("creator.randomize")}
         </button>
         <button
           type="button"
           className="flex-1 border px-3 py-1 text-sm"
           onClick={recall}
         >
-          My last character
+          {t("creator.lastCharacter")}
         </button>
         <button
           type="button"
@@ -125,7 +129,7 @@ export function CharacterCreator({
           disabled={!dirty}
           onClick={() => setCharacter(initial)}
         >
-          Undo changes
+          {t("creator.undo")}
         </button>
       </div>
 
@@ -141,7 +145,7 @@ export function CharacterCreator({
               name === group ? "border-2 font-semibold" : "opacity-70"
             }`}
           >
-            {name}
+            {t(`group.${name}`)}
           </button>
         ))}
       </nav>
@@ -153,13 +157,14 @@ export function CharacterCreator({
             field={field}
             character={character}
             onChange={setCharacter}
+            t={t}
           />
         ))}
       </div>
 
       {error ? (
         <p role="alert" className="border border-amber-600 px-2 py-1 text-sm text-amber-700">
-          {error}
+          {t(error.key, error.params)}
         </p>
       ) : null}
 
@@ -169,7 +174,7 @@ export function CharacterCreator({
         disabled={saving}
         onClick={save}
       >
-        {saving ? "Saving…" : dirty ? "Save and go back" : "Back to the lobby"}
+        {saving ? t("creator.saving") : dirty ? t("creator.saveAndBack") : t("creator.backToLobby")}
       </button>
     </div>
   );
@@ -179,12 +184,15 @@ function Layer({
   field,
   character,
   onChange,
+  t,
 }: {
   field: CharacterField;
   character: Character;
   onChange: (next: Character) => void;
+  t: Translate;
 }) {
-  const { title, options, optional } = CHOICES[field];
+  const { options, optional } = CHOICES[field];
+  const title = t(`field.${field}`);
   const swatches = COLOUR_FIELDS[field];
   const current = character[field];
 
@@ -196,7 +204,7 @@ function Layer({
           {/* The doc's arrows: flick through a layer without reading a grid. */}
           <button
             type="button"
-            aria-label={`Previous ${title.toLowerCase()}`}
+            aria-label={t("creator.previous", { layer: title })}
             className="border px-2 text-sm"
             onClick={() => onChange(cycle(character, field, -1))}
           >
@@ -204,7 +212,7 @@ function Layer({
           </button>
           <button
             type="button"
-            aria-label={`Next ${title.toLowerCase()}`}
+            aria-label={t("creator.next", { layer: title })}
             className="border px-2 text-sm"
             onClick={() => onChange(cycle(character, field, 1))}
           >
@@ -217,7 +225,7 @@ function Layer({
         {optional ? (
           <Option
             selected={current === null}
-            title="None"
+            title={t("creator.none")}
             onClick={() => onChange({ ...character, [field]: null })}
           />
         ) : null}
@@ -226,7 +234,7 @@ function Layer({
           <Option
             key={option.id}
             selected={current === option.id}
-            title={option.title}
+            title={t(`part.${field}.${option.id}` as never)}
             swatch={
               swatches
                 ? PALETTES[swatches].find((p) => p.id === option.id)?.base

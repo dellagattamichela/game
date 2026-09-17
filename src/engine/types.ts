@@ -6,6 +6,7 @@
  * server route handler once rooms exist (stage 4). Nothing in this file may
  * import React, Next, or touch the network.
  */
+import type { MessageKey, Params } from "@/i18n";
 
 // ---------------------------------------------------------------------------
 // Conditions
@@ -249,7 +250,6 @@ export type LogEntry = {
   /** Who decided. For group scenes this is the whole room. */
   deciderIds: string[];
   choiceIndex: number;
-  label: string;
   starsSpent: number;
   mishapAdded: string | null;
   cluesFound: string[];
@@ -271,16 +271,16 @@ export type Gift = {
 };
 
 /**
- * What just happened, shown during the "result" phase. Held in state rather
- * than derived so that every client renders the identical beat, including
- * players who join mid-result once rooms exist.
+ * What just happened, shown during the "result" phase.
+ *
+ * It holds *what* happened — which choice, in which scene, at what cost — and
+ * not a word of prose. The sentence is resolved when it is drawn, by
+ * `pendingView`, which is what lets two players at the same table read the
+ * same beat in two languages from one saved state.
  */
 export type PendingResult = {
   sceneId: string;
   choiceIndex: number;
-  label: string;
-  /** Result text with placeholders already substituted. */
-  text: string;
   /** Net star change per player for this scene: cost paid plus effects earned. */
   deltas: Record<string, number>;
   /** Gifts made during the scene, kept so the result beat can credit them. */
@@ -352,7 +352,15 @@ export type Action =
  */
 export type ActionResult =
   | { ok: true; state: GameState }
-  | { ok: false; code: RejectionCode; message: string };
+  | {
+      ok: false;
+      code: RejectionCode;
+      /** The English sentence, for logs and tests. */
+      message: string;
+      /** The same sentence as a catalogue key, for the reader's language. */
+      key: MessageKey;
+      params?: Params;
+    };
 
 export type RejectionCode =
   | "wrong_phase"
