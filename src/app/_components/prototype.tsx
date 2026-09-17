@@ -216,7 +216,7 @@ function Setup({
       </div>
 
       <p className="text-sm opacity-70">
-        Or play it with other devices (stage 3, in progress):{" "}
+        Or play it with other devices:{" "}
         <Link href="/rooms/new" className="underline">
           create a room
         </Link>{" "}

@@ -15,11 +15,18 @@
  * swapping it costs one file, and that `createRoomStore` can be handed a fake
  * clock and fake bytes in tests.
  */
+import { applyAction } from "@/engine/engine";
 import { newSeed } from "@/engine/rng";
+import type { Action } from "@/engine/types";
 import { getStory } from "@/stories";
 import { CODE_LENGTH, MAX_CODE_LENGTH, generateCode, normalizeCode } from "./code";
 import { createRoom, joinRoom, pickStory, setReady, startGame } from "./room";
-import { DEFAULT_MAX_PLAYERS, type Room, type RoomResult } from "./types";
+import {
+  DEFAULT_MAX_PLAYERS,
+  type Room,
+  type RoomActionResult,
+  type RoomResult,
+} from "./types";
 
 /** A room nobody has touched for this long is gone. Long enough to outlive a session. */
 const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
@@ -57,6 +64,12 @@ export type RoomStore = {
   chooseStory(code: string, playerId: string, storyId: string): RoomResult;
   /** The host starts: the room hands itself to the engine. */
   start(code: string, playerId: string): RoomResult;
+  /**
+   * Play one engine action against the room's run. The caller is trusted to
+   * have put the right `playerId` on the action — see `playAction`, which
+   * builds it from the cookie so a client cannot act as someone else.
+   */
+  act(code: string, action: Action): RoomActionResult;
   /** Look a room up by whatever the player typed. Expired rooms read as missing. */
   find(code: string): Room | undefined;
   /** Write a changed room back. Stamps `updatedAt`, which is what keeps it alive. */
@@ -195,6 +208,41 @@ export function createRoomStore(options: RoomStoreOptions = {}): RoomStore {
       const story = room.storyId ? getStory(room.storyId) : undefined;
 
       return commit(startGame({ room, playerId, story, seed: seed(), now: now() }));
+    },
+
+    act(code, action) {
+      const room = find(code);
+      if (!room) return notFound();
+
+      if (room.status !== "playing" || !room.game) {
+        return {
+          ok: false,
+          code: "not_playing",
+          message:
+            room.status === "lobby"
+              ? "This game has not started yet."
+              : "This game is over.",
+        };
+      }
+
+      const story = room.storyId ? getStory(room.storyId) : undefined;
+      if (!story) {
+        return { ok: false, code: "unknown_story", message: `No story called "${room.storyId}".` };
+      }
+
+      const result = applyAction(story, room.game, action);
+      if (!result.ok) return result;
+
+      // The engine decides the story is over; the room decides it is over too,
+      // so a finished run stops accepting lobby actions as well as scene ones.
+      const played: Room = {
+        ...room,
+        game: result.state,
+        status: result.state.phase === "ended" ? "ended" : room.status,
+        updatedAt: now(),
+      };
+      rooms.set(played.code, played);
+      return { ok: true, room: played };
     },
 
     find,

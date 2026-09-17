@@ -11,7 +11,7 @@
  * feature does not exist yet: `character` arrives with the creator (stage 2),
  * and `game` stays null until multiplayer turns (stage 4).
  */
-import type { GameState } from "@/engine/types";
+import type { GameState, RejectionCode } from "@/engine/types";
 
 /** 2 is the smallest group a story is written for; 6 is where waiting starts to hurt. */
 export const MIN_ROOM_PLAYERS = 2;
@@ -81,7 +81,9 @@ export type RoomRejectionCode =
   | "no_story"
   | "not_everyone_ready"
   /** The room holds more or fewer people than the chosen story is written for. */
-  | "wrong_player_count";
+  | "wrong_player_count"
+  /** Asked to play a scene in a room that is still in the lobby, or already over. */
+  | "not_playing";
 
 /**
  * Mirrors the engine's `ActionResult`: a typed rejection rather than a throw,
@@ -90,3 +92,16 @@ export type RoomRejectionCode =
 export type RoomResult =
   | { ok: true; room: Room }
   | { ok: false; code: RoomRejectionCode; message: string };
+
+/**
+ * The result of playing a scene, which can be refused by either layer: by the
+ * room ("no room answers to that code") or by the engine ("only the spotlight
+ * player picks this scene").
+ *
+ * The engine's own code is passed through rather than flattened into one
+ * `game_rejected`, because the difference between `cannot_afford` and
+ * `not_spotlight` is exactly what a client wants to react to.
+ */
+export type RoomActionResult =
+  | { ok: true; room: Room }
+  | { ok: false; code: RoomRejectionCode | RejectionCode; message: string };

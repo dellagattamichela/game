@@ -194,8 +194,13 @@ export function joinRoom({ room, player, now }: JoinRoomInput): RoomResult {
   };
 }
 
-/** True if this player already holds a seat — the lobby renders on this. */
-export function isMember(room: Room, playerId: string | null): boolean {
+/**
+ * True if this player already holds a seat — the lobby renders on this.
+ *
+ * Typed as a predicate on `playerId` so that a caller past this check has a
+ * `string` rather than a `string | null`: a member, by definition, has an id.
+ */
+export function isMember(room: Room, playerId: string | null): playerId is string {
   return playerId !== null && room.players.some((p) => p.id === playerId);
 }
 

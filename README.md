@@ -11,21 +11,23 @@ Design doc: [`docs/pilot-season-design-doc.md`](docs/pilot-season-design-doc.md)
 ## Where this is
 
 Stage 1 of the build plan is done: **the mechanic, playable in one browser**.
-The prototype puts the whole room on one screen and you act as whoever the turn
-belongs to, which is enough to exercise spotlight rotation, group votes, gated
-choices and Star-giving. No networking and no art yet.
+The prototype at `/` puts the whole room on one screen and you act as whoever
+the turn belongs to. It is still the quickest way to read a story end to end,
+and it stays as the place to test a story without gathering four people.
 
-Stage 3 works end to end: a creator makes a room and gets an invite code, other
-people walk in through it, everyone readies up, the host picks a story and
-starts — and the room hands itself to the engine. What is not built is playing
-that story across devices, which is stage 4.
+Stages 3 and 4 work end to end: a creator makes a room and gets an invite code,
+other people walk in through it, everyone readies up, the host picks a story,
+and the room plays it — one seat per browser, spotlight turns, group votes,
+Star-giving and skill tests, through to an ending. What is missing is the art
+and the polish: no character creator, no backgrounds, no turn timer, and rooms
+talk over polling rather than a real-time channel.
 
 | Stage | Status |
 |---|---|
 | 1. Single-browser prototype | done |
 | 2. Character creator | not started |
 | 3. Rooms | done: create, invite, join, rejoin, ready, pick, start |
-| 4. Multiplayer turns | not started |
+| 4. Multiplayer turns | done: one seat per browser, played over polling |
 | 5. Polish | not started |
 | 6. More stories | not started |
 
@@ -124,10 +126,9 @@ does not bin everyone's room on each save. That works for one long-lived server
 and not for serverless; section 10 of the design doc picks the real backend, and
 `RoomStore` is an interface with one implementation so swapping it costs one file.
 
-The lobby polls itself every three seconds so a host can watch people arrive.
-That is a placeholder with a known replacement: stage 4 gives rooms a real-time
-channel, and `lobby-refresh.tsx` goes away with it. Actions call `refresh()`
-themselves, so your own clicks land immediately rather than on the next tick.
+The lobby polls itself so a host can watch people arrive — see *Playing across
+devices* below for how that works and when it stops. It is a placeholder with a
+known replacement: a real-time channel retires `lobby-refresh.tsx` entirely.
 
 ### Where the room meets the engine
 
@@ -149,9 +150,43 @@ a second opinion about it.
 
 ```
         ┌──── join ────┐
-create ─┤              ├─ ready ─→ pick ─→ start ─→ room.game
+create ─┤              ├─ ready ─→ pick ─→ start ─→ room.game ─→ act ─→ ending
         └── rejoin ────┘                            (the engine takes over)
 ```
+
+## Playing across devices
+
+`store.act(code, action)` is the referee. It loads the room, calls the same
+`applyAction` the prototype calls, writes the new state back, and closes the
+room when the engine says the story is over. The engine's refusals pass through
+with their own codes, so `cannot_afford` stays distinguishable from
+`not_spotlight` instead of collapsing into one "no".
+
+**A client cannot act as another player.** `playAction` does not accept an
+engine `Action` — every one of those carries the id of the player it is for, and
+a Server Action is reachable by direct POST, so accepting one whole would let
+anyone vote as anyone. It accepts a shape with no id in it at all, and adds the
+id from the cookie. Impersonation is not checked for; it is unrepresentable.
+
+**The table shows one seat.** The prototype's screen is a hot seat where you act
+as whoever the turn belongs to. `room-table.tsx` is the opposite: it knows which
+player it belongs to and enables only what that person may do. Everyone else
+watches the same scene with the same options greyed out, which is what keeps
+four people looking at one story rather than at a waiting screen. It computes no
+rules — `sceneView` runs on the server and the client renders what it says.
+
+**Polling is the transport, and it knows when to stop.** Two seconds during a
+scene, three in the lobby, paused while you are mid-puzzle (a refresh would
+redraw the puzzle under you, and only you can end that phase anyway) and paused
+once the run is over. Your own moves do not wait for the next tick: the actions
+call `refresh()` themselves.
+
+Two consequences worth knowing. Anyone may press **Next scene**, so whoever
+reads fastest ends up driving the room — which is also how it works around a
+table, but it means a quick clicker can move past a result beat before everyone
+has read it. And a client reports its own skill-test outcome, so it could lie
+about passing; that is the trade the design doc already makes for turn timers,
+and it is the same trade for a game among friends.
 
 ## Writing a story
 

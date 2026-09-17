@@ -622,6 +622,100 @@ describe("the store", () => {
   });
 
 
+  /** A started two-player run of The Pilot, ready to be played. */
+  function playing() {
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ"), seed: () => 7 });
+    store.open({ hostId: "h", hostName: "Michela" });
+    store.join("MNPQ", { playerId: "p2", name: "Bo" });
+    store.ready("MNPQ", "p2", true);
+    store.chooseStory("MNPQ", "h", "the-pilot");
+    const started = store.start("MNPQ", "h");
+    if (!started.ok) throw new Error("fixture failed");
+    return { store, room: started.room };
+  }
+
+  it("plays an engine action against the room's run", () => {
+    const { store } = playing();
+
+    const result = store.act("MNPQ", { type: "choose", playerId: "h", choiceIndex: 0 });
+
+    expect(result.ok).toBe(true);
+    expect(store.find("MNPQ")?.game?.phase).toBe("result");
+    expect(store.find("MNPQ")?.game?.log).toHaveLength(1);
+  });
+
+  it("passes the engine's own refusal through, code and all", () => {
+    const { store } = playing();
+
+    // Bo is not in the spotlight on scene one.
+    const result = store.act("MNPQ", { type: "choose", playerId: "p2", choiceIndex: 0 });
+
+    expect(result).toMatchObject({ ok: false, code: "not_spotlight" });
+    // And nothing moved.
+    expect(store.find("MNPQ")?.game?.phase).toBe("scene");
+  });
+
+  it("refuses to play a room that has not started", () => {
+    const store = createRoomStore({ generate: scriptedCodes("MNPQ") });
+    store.open({ hostId: "h", hostName: "Michela" });
+
+    expect(store.act("MNPQ", { type: "choose", playerId: "h", choiceIndex: 0 })).toMatchObject({
+      ok: false,
+      code: "not_playing",
+    });
+  });
+
+  it("closes the room when the engine says the story is over", () => {
+    const { store } = playing();
+    const story = requireStory("the-pilot");
+
+    // Walk the run to its ending: pick, continue, pick, continue…
+    for (let step = 0; step < 200; step++) {
+      const game = store.find("MNPQ")?.game;
+      if (!game || game.phase === "ended") break;
+
+      if (game.phase === "result") {
+        store.act("MNPQ", { type: "continue", playerId: "h" });
+        continue;
+      }
+      // The Pilot mixes spotlight scenes with group votes and has no skill
+      // tests, so choice 0 always lands — as a pick or as a unanimous vote.
+      if (story.scenes[game.sceneId].mode === "group") {
+        for (const player of game.players) {
+          store.act("MNPQ", { type: "vote", playerId: player.id, choiceIndex: 0 });
+        }
+        continue;
+      }
+      const spotlight = game.players[game.spotlightIndex].id;
+      store.act("MNPQ", { type: "choose", playerId: spotlight, choiceIndex: 0 });
+    }
+
+    const room = store.find("MNPQ");
+    expect(room?.game?.phase).toBe("ended");
+    expect(room?.game?.endingId).toBeTruthy();
+    expect(room?.status).toBe("ended");
+  });
+
+  it("stops taking lobby actions once the run is over", () => {
+    const { store } = playing();
+    const room = store.find("MNPQ");
+    if (!room?.game) throw new Error("fixture failed");
+    // Force the finished state rather than replaying the whole story.
+    store.save({ ...room, status: "ended", game: { ...room.game, phase: "ended" } });
+
+    expect(store.ready("MNPQ", "p2", false)).toMatchObject({ code: "already_started" });
+    expect(store.act("MNPQ", { type: "continue", playerId: "h" })).toMatchObject({
+      code: "not_playing",
+    });
+  });
+
+  it("answers room_not_found when the code is dead", () => {
+    const store = createRoomStore();
+    expect(store.act("MNPQ", { type: "continue", playerId: "h" })).toMatchObject({
+      code: "room_not_found",
+    });
+  });
+
   it("closes a room on request", () => {
     const store = createRoomStore({ generate: scriptedCodes("MNPQ") });
     store.open({ hostId: "a", hostName: "A" });

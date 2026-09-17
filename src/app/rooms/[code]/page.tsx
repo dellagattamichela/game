@@ -20,8 +20,9 @@ import {
   StoryPicker,
   type StoryCard,
 } from "../_components/lobby-controls";
-import { sceneView } from "@/engine/engine";
-import type { Story } from "@/engine/types";
+import { RoomTable, type StoryChrome } from "../_components/room-table";
+import { resolveEnding, sceneView } from "@/engine/engine";
+import type { GameState, Story } from "@/engine/types";
 import { normalizeCode } from "@/rooms/code";
 import { PLAYER_COOKIE } from "@/rooms/player";
 import { hasSeat, isMember, startBlocker } from "@/rooms/room";
@@ -30,7 +31,7 @@ import type { Room } from "@/rooms/types";
 import { STORIES, getStory } from "@/stories";
 
 export const metadata: Metadata = {
-  title: "Lobby · Pilot Season",
+  title: "Room · Pilot Season",
 };
 
 export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
@@ -53,10 +54,19 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
   const isHost = playerId === room.hostId;
   const me = room.players.find((p) => p.id === playerId);
   const story = room.storyId ? getStory(room.storyId) : undefined;
+  // Polling would re-render a puzzle out from under the person playing it, and
+  // they are the only one who can end the phase anyway.
+  const myMinigame = room.game?.phase === "minigame" && room.game.minigame?.playerId === playerId;
+  // Nothing about a finished run will change, so stop asking.
+  const settled = room.status === "ended";
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-6 p-6">
-      <LobbyRefresh />
+    <main
+      className={`mx-auto flex w-full flex-col gap-6 p-6 ${
+        room.status === "lobby" ? "max-w-md" : "max-w-2xl"
+      }`}
+    >
+      <LobbyRefresh everyMs={room.status === "lobby" ? 3000 : 2000} paused={myMinigame || settled} />
       <h1 className="text-2xl font-bold">{room.status === "lobby" ? "Lobby" : story?.title}</h1>
 
       {room.status === "lobby" ? <InviteCode code={room.code} link={link} /> : null}
@@ -85,7 +95,7 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
           ) : null}
         </>
       ) : (
-        <Opening room={room} story={story} />
+        <Table game={room.game} story={story} code={room.code} myId={playerId} />
       )}
 
       <Link href="/" className="text-sm underline opacity-70">
@@ -96,39 +106,58 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
 }
 
 /**
- * Proof that the room and the engine are now the same run: the opening scene,
- * rendered from `room.game` through the engine's own `sceneView`.
+ * The run, handed to the table.
  *
- * Read-only on purpose. Playing a story across devices — dispatching actions,
- * votes, Star gifts — is stage 4, and the point of stopping here is that the
- * handover works before anything is built on top of it.
+ * Everything the client needs is computed here: the engine's own `sceneView`,
+ * and the story's titles for clues, mishaps and the ending. That keeps the
+ * story files and the zod-validated registry out of the client bundle, and it
+ * keeps the rule that the UI never evaluates a gate for itself.
  */
-function Opening({ room, story }: { room: Room; story: Story | undefined }) {
-  if (!story || !room.game) return null;
+function Table({
+  game,
+  story,
+  code,
+  myId,
+}: {
+  game: GameState | null;
+  story: Story | undefined;
+  code: string;
+  myId: string;
+}) {
+  if (!story || !game) return null;
 
-  const view = sceneView(story, room.game);
+  const chrome: StoryChrome = {
+    title: story.title,
+    clues: story.clues
+      ? Object.fromEntries(
+          Object.entries(story.clues).map(([id, clue]) => [
+            id,
+            { title: clue.title, description: clue.description },
+          ]),
+        )
+      : null,
+    clueCount: story.clues ? Object.keys(story.clues).length : 0,
+    mishaps: Object.fromEntries(
+      Object.entries(story.mishaps ?? {}).map(([id, mishap]) => [id, mishap.title]),
+    ),
+    ending:
+      game.phase === "ended"
+        ? (() => {
+            const ending =
+              story.endings.find((e) => e.id === game.endingId) ?? resolveEnding(story, game);
+            return { title: ending.title, text: ending.text };
+          })()
+        : null,
+  };
 
   return (
-    <section className="flex flex-col gap-2 border-2 p-4">
-      <p className="text-xs uppercase tracking-wide opacity-60">
-        Scene {view.sceneId} · {view.spotlight.name} is in the spotlight
-      </p>
-      <p>{view.text}</p>
-      <ul className="flex flex-col gap-1 text-sm opacity-70">
-        {view.choices
-          .filter((choice) => !choice.hidden)
-          .map((choice) => (
-            <li key={choice.index} className="border px-2 py-1">
-              {choice.label}
-              {choice.cost > 0 ? ` · ${choice.cost} ⭐` : ""}
-            </li>
-          ))}
-      </ul>
-      <p className="text-sm opacity-60">
-        Everyone starts with {story.startingStars} ⭐. Playing a story across
-        devices is stage 4 — for now the run lives in the room, unplayed.
-      </p>
-    </section>
+    <RoomTable
+      code={code}
+      myId={myId}
+      game={game}
+      view={sceneView(story, game)}
+      chrome={chrome}
+    />
   );
 }
 
@@ -172,7 +201,9 @@ function Door({ room }: { room: Room }) {
         <p className="border border-amber-600 px-2 py-1 text-sm text-amber-700">
           {room.status === "lobby"
             ? "This room is full."
-            : "This game has already started. If you were playing, put in the name you used."}
+            : room.status === "ended"
+              ? "This game has finished. If you were playing, put in the name you used to see how it went."
+              : "This game has already started. If you were playing, put in the name you used."}
         </p>
       ) : null}
 

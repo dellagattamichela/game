@@ -12,15 +12,23 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export function LobbyRefresh({ everyMs = 3000 }: { everyMs?: number }) {
+export function LobbyRefresh({
+  everyMs = 3000,
+  paused = false,
+}: {
+  everyMs?: number;
+  /** Set while this player is mid-puzzle: a refresh would redraw it under them. */
+  paused?: boolean;
+}) {
   const router = useRouter();
 
   useEffect(() => {
+    if (paused) return;
     const timer = setInterval(() => {
       if (!document.hidden) router.refresh();
     }, everyMs);
     return () => clearInterval(timer);
-  }, [router, everyMs]);
+  }, [router, everyMs, paused]);
 
   return null;
 }
