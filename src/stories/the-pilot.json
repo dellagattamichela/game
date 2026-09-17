@@ -8,6 +8,63 @@
   },
   "startingStars": 2,
   "start": "s1",
+  "cast": {
+    "dot": {
+      "name": "Dot",
+      "note": "Floor manager. Has run four hundred of these and has never once been surprised.",
+      "look": {
+        "hair": "bob",
+        "hairColor": "silver",
+        "top": "apron",
+        "topColor": "ink",
+        "eyes": "narrow",
+        "brows": "straight",
+        "mouth": "flat"
+      }
+    },
+    "marv": {
+      "name": "Marv Sokolov",
+      "note": "The network. Speaks in the voice of a man updating a spreadsheet.",
+      "look": {
+        "hair": "buzz",
+        "hairColor": "black",
+        "top": "blazer",
+        "topColor": "ink",
+        "eyes": "sleepy",
+        "brows": "thick",
+        "mouth": "flat",
+        "accessory": "glasses"
+      }
+    },
+    "viv": {
+      "name": "Viv from Legal",
+      "note": "Attends rehearsals. Highlights things in three colours.",
+      "look": {
+        "hair": "ponytail",
+        "hairColor": "brown",
+        "top": "turtleneck",
+        "topColor": "blue",
+        "eyes": "round",
+        "brows": "raised",
+        "mouth": "flat",
+        "accessory": "glasses"
+      }
+    },
+    "renata": {
+      "name": "Renata Cole",
+      "note": "The lead. Has been the lead in eleven things and remembers all of them.",
+      "look": {
+        "hair": "long",
+        "hairColor": "chestnut",
+        "top": "hoodie",
+        "topColor": "red",
+        "eyes": "sparkly",
+        "brows": "fine",
+        "mouth": "smile",
+        "accessory": "earrings"
+      }
+    }
+  },
   "mishaps": {
     "boss_suspicious": {
       "id": "boss_suspicious",
@@ -39,7 +96,7 @@
             "stars": 1
           },
           "result": "Everyone agrees it has been done. Everyone agrees to do it anyway.",
-          "next": "s2"
+          "next": "s1b"
         },
         {
           "label": "Pitch the gritty hospital drama",
@@ -47,7 +104,7 @@
             "stars": 1
           },
           "result": "Three people cry during the pitch. {spotlight} is fairly sure that is a good sign.",
-          "next": "s2"
+          "next": "s1b"
         },
         {
           "label": "Pitch whatever {randomPlayer} has been doodling",
@@ -55,6 +112,29 @@
             "starsAll": 1
           },
           "result": "It is a duck who solves crimes. {randomPlayer} has never looked so alive, and the room is suddenly on fire about it.",
+          "next": "s1b"
+        }
+      ]
+    },
+    "s1b": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "speaker": "dot",
+      "text": "\"Studio's yours till Sunday. The sprinklers are decorative, the third socket is a lie, and the goose is not my department.\" Dot says all of this while writing something else on the board.",
+      "choices": [
+        {
+          "label": "Ask what happened to the last production",
+          "result": "\"They also had seven days.\" She does not elaborate, and leaves through a door nobody had noticed.",
+          "next": "s2"
+        },
+        {
+          "label": "Promise her this one is different",
+          "result": "\"They all say that.\" She writes it on the board anyway, under a heading that says PROMISES.",
+          "next": "s2"
+        },
+        {
+          "label": "Ask what she would do with seven days",
+          "result": "She thinks about it for longer than anyone expected. \"Three,\" she says. \"I'd shoot it in three and spend four hiding.\"",
           "next": "s2"
         }
       ]
@@ -101,7 +181,7 @@
             "stars": 2
           },
           "result": "The chair is magnificent. Nothing else in frame can look at it directly.",
-          "next": "s4"
+          "next": "s3b"
         },
         {
           "label": "Buy a smoke machine and hope",
@@ -109,7 +189,7 @@
             "stars": 1
           },
           "result": "The smoke machine has two settings: off, and weather event.",
-          "next": "s4"
+          "next": "s3b"
         },
         {
           "label": "Save it, somebody will need it later",
@@ -117,6 +197,39 @@
             "stars": 1
           },
           "result": "A dull decision that makes everyone feel obscurely safer.",
+          "next": "s3b"
+        }
+      ]
+    },
+    "s3b": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "speaker": "dot",
+      "text": "\"Everything you ordered is in the cage. So is everything the last four productions ordered.\" Dot hands over a torch and does not offer to come in.",
+      "choices": [
+        {
+          "label": "Go through the cage crate by crate",
+          "minigame": {
+            "type": "search",
+            "difficulty": 2,
+            "prompt": "Four crates have your show's name on them. The rest belong to a soap opera."
+          },
+          "effects": {
+            "stars": 1
+          },
+          "result": "Four crates, all yours, one of them containing a chandelier nobody remembers ordering. It goes in act three.",
+          "next": "s4",
+          "failNext": "s4",
+          "failResult": "An hour in the cage and {spotlight} comes out with a fog machine, a tuba, and no idea whose they are."
+        },
+        {
+          "label": "Send {randomPlayer} in instead",
+          "result": "{randomPlayer} emerges forty minutes later with three of the four crates and a haunted expression.",
+          "next": "s4"
+        },
+        {
+          "label": "Buy replacements and say nothing",
+          "result": "The replacements arrive in an hour. The budget notices immediately.",
           "next": "s4"
         }
       ]
@@ -160,7 +273,7 @@
         {
           "label": "Cut act two entirely",
           "result": "The show is now nineteen minutes long. The network ordered twenty-two.",
-          "next": "s6",
+          "next": "s5b",
           "effects": {
             "stars": 1
           }
@@ -168,7 +281,7 @@
         {
           "label": "Keep it and call it experimental",
           "result": "You say the word \"experimental\" out loud and everyone relaxes immediately.",
-          "next": "s6",
+          "next": "s5b",
           "effects": {
             "stars": 1
           }
@@ -176,10 +289,43 @@
         {
           "label": "Rewrite it overnight, together",
           "result": "Nobody sleeps. The new act two is genuinely good, which feels unfair.",
-          "next": "s6",
+          "next": "s5b",
           "effects": {
             "stars": 1
           }
+        }
+      ]
+    },
+    "s5b": {
+      "mode": "spotlight",
+      "background": "writers_room",
+      "speaker": "renata",
+      "text": "\"I'll say the line. I would like to say the right line.\" Renata Cole has been the lead in eleven things and remembers all of them, which is exactly the problem.",
+      "choices": [
+        {
+          "label": "Run the catchphrase with her until it sticks",
+          "minigame": {
+            "type": "memory",
+            "difficulty": 2,
+            "prompt": "Four beats, in order. She will say it once."
+          },
+          "effects": {
+            "stars": 1
+          },
+          "result": "She has it by the third pass, and by the fifth she has made it better without telling anyone she has.",
+          "next": "s6",
+          "failNext": "s6",
+          "failResult": "By pass nine it is a different line entirely. \"That's the one,\" she says. It is not the one."
+        },
+        {
+          "label": "Tell her to improvise",
+          "result": "\"Finally.\" She improvises eleven versions. Two of them are usable and one of them is unrepeatable.",
+          "next": "s6"
+        },
+        {
+          "label": "Write it on the back of the chair",
+          "result": "She reads it off the chair perfectly, while looking at the chair, on camera.",
+          "next": "s6"
         }
       ]
     },
@@ -200,13 +346,13 @@
         },
         {
           "label": "Distract him with the catchphrase",
-          "cost": 2,
+          "cost": 3,
           "result": "{spotlight} lands it perfectly. He laughs. The fire is dealt with off-camera by somebody braver.",
           "next": "s7"
         },
         {
           "label": "Get the entire cast to perform a musical number",
-          "cost": 5,
+          "cost": 6,
           "effects": {
             "starsAll": 1
           },
@@ -226,7 +372,7 @@
             "stars": 2
           },
           "result": "The finale now requires a crane you do not have.",
-          "next": "s8"
+          "next": "s7d"
         },
         {
           "label": "Lock the script and protect what works",
@@ -234,6 +380,29 @@
             "stars": 1
           },
           "result": "A calm, professional decision. It will be the only one.",
+          "next": "s7d"
+        }
+      ]
+    },
+    "s7d": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "speaker": "marv",
+      "text": "\"I liked it,\" Marv says, in the voice of a man updating a spreadsheet. \"I want to be clear that liking it is not the same as ordering it.\"",
+      "choices": [
+        {
+          "label": "Ask him what would be the same as ordering it",
+          "result": "\"A number.\" He writes one down, folds the paper, and puts it in his own pocket.",
+          "next": "s8"
+        },
+        {
+          "label": "Show him the goose footage",
+          "result": "He watches all four minutes without blinking. \"Do that,\" he says, \"but on purpose.\"",
+          "next": "s8"
+        },
+        {
+          "label": "Thank him and get back to work",
+          "result": "He seems relieved. Nobody has ever ended a conversation with him first.",
           "next": "s8"
         }
       ]
@@ -249,7 +418,7 @@
             "stars": 2
           },
           "result": "Legal laughs once, writes it down, and underlines it.",
-          "next": "s8"
+          "next": "s7c"
         },
         {
           "label": "Ignore Legal and work faster",
@@ -257,6 +426,40 @@
             "stars": 1
           },
           "result": "Legal turns a page. Nobody has seen the first page.",
+          "next": "s7c"
+        }
+      ]
+    },
+    "s7c": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "speaker": "viv",
+      "text": "Viv from Legal has read the script twice and highlighted it in three colours. \"I have questions about the goose,\" she says. \"Nineteen of them.\"",
+      "choices": [
+        {
+          "label": "Answer all nineteen",
+          "result": "It takes an hour. At question fourteen she laughs, catches herself, and crosses out the whole page. \"I'll tell Marv it's handled.\"",
+          "next": "s8",
+          "minigame": {
+            "type": "search",
+            "difficulty": 3,
+            "prompt": "Nineteen highlighted lines. Four of them are the ones she actually cares about."
+          },
+          "effects": {
+            "removeMishap": "boss_suspicious",
+            "stars": 1
+          },
+          "failResult": "Ninety minutes, and she is still on question six. The clipboard goes back in the bag unfinished.",
+          "failNext": "s8"
+        },
+        {
+          "label": "Tell her the goose has no agent and no standing",
+          "result": "\"Everything has standing,\" she says, with the calm of someone who has seen a hedgehog sue.",
+          "next": "s8"
+        },
+        {
+          "label": "Offer her a producer credit",
+          "result": "She declines. She then asks, carefully, what a producer credit involves.",
           "next": "s8"
         }
       ]
@@ -303,7 +506,7 @@
             "stars": 2
           },
           "result": "Take one is a disaster. Take nine is a miracle. There is no take ten.",
-          "next": "s10"
+          "next": "s9b"
         },
         {
           "label": "Cover everything, fix it in the edit",
@@ -311,7 +514,7 @@
             "stars": 1
           },
           "result": "Four hours of footage, all of it usable, none of it exciting.",
-          "next": "s10"
+          "next": "s9b"
         },
         {
           "label": "Let the goose improvise",
@@ -320,6 +523,39 @@
             "addMishap": "goose_grudge"
           },
           "result": "The goose improvises. It is the best footage you have. The goose now knows it is the best footage you have.",
+          "next": "s9b"
+        }
+      ]
+    },
+    "s9b": {
+      "mode": "spotlight",
+      "background": "studio_floor",
+      "speaker": "dot",
+      "text": "\"Running order.\" Dot holds out six cards, face up, in the wrong order. \"The camera doesn't guess, and neither do I.\"",
+      "choices": [
+        {
+          "label": "Put the run of show in order",
+          "minigame": {
+            "type": "order",
+            "difficulty": 3,
+            "prompt": "Cold open, titles, the two acts, the goose, the sting. One order works."
+          },
+          "effects": {
+            "stars": 1
+          },
+          "result": "Dot reads it back once, nods once, and pins it up. That is the most anyone has got out of her all week.",
+          "next": "s10",
+          "failNext": "s10",
+          "failResult": "The titles end up after act two. Dot pins it up anyway. \"Your show,\" she says."
+        },
+        {
+          "label": "Let Dot order it",
+          "result": "She has it done before the sentence is finished. It is better than yours would have been and everyone knows it.",
+          "next": "s10"
+        },
+        {
+          "label": "Shoot it in script order and sort it later",
+          "result": "\"Later,\" she repeats, in the tone of a woman who has met later.",
           "next": "s10"
         }
       ]
@@ -337,21 +573,54 @@
             "addMishap": "haunted_laugh"
           },
           "result": "You go live. The laugh track fires at every wrong moment and will not stop. It is still going quietly under the credits.",
-          "next": "s11"
+          "next": "s10c"
         },
         {
           "label": "Send {randomPlayer} out to stall",
-          "cost": 2,
+          "cost": 3,
           "result": "{randomPlayer} stalls for four minutes with a story about a dog. It is, unexpectedly, the best-reviewed part of the night.",
-          "next": "s11"
+          "next": "s10c"
         },
         {
           "label": "Rewrite the cold open live, on air",
-          "cost": 4,
+          "cost": 6,
           "effects": {
             "starsAll": 1
           },
           "result": "{spotlight} rewrites it out loud while the camera is running and everyone follows. The goose stays in the rig, watching, like a producer.",
+          "next": "s10c"
+        }
+      ]
+    },
+    "s10c": {
+      "mode": "spotlight",
+      "background": "broadcast_night",
+      "speaker": "dot",
+      "text": "\"Last cue of the night. On my mark, not near it.\" The credits music is loaded, the gallery is silent, and the goose is still in the rig.",
+      "choices": [
+        {
+          "label": "Take the cue yourself",
+          "minigame": {
+            "type": "timing",
+            "difficulty": 3,
+            "prompt": "Dot's hand comes down. Hit it on the mark, not near it."
+          },
+          "effects": {
+            "stars": 1
+          },
+          "result": "Dead on. The music lands under the last word and the whole gallery exhales at once.",
+          "next": "s11",
+          "failNext": "s11",
+          "failResult": "Half a second early. The credits start over Renata's last line, which is now a line nobody at home has heard."
+        },
+        {
+          "label": "Give the cue to Dot",
+          "result": "She takes it without looking up. It is perfect, because of course it is.",
+          "next": "s11"
+        },
+        {
+          "label": "Let the music run from the top of the act",
+          "result": "The whole last act now has scoring. It is either bold or a mistake, and the reviews will decide which.",
           "next": "s11"
         }
       ]

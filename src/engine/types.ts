@@ -144,8 +144,35 @@ export type Scene = {
   mode?: SceneMode;
   /** Art key, unused in stage 1. */
   background?: string;
+  /**
+   * A `cast` id, when the scene text is someone else talking rather than the
+   * story narrating. Presentation only: it changes who the dialog box shows as
+   * speaking, and nothing about who decides.
+   */
+  speaker?: string;
   text: string;
   choices: Choice[];
+};
+
+/**
+ * Someone in the story who is not a player — the network boss, the night
+ * engineer, the chef with something to hide.
+ *
+ * Their look is a `Character`'s worth of choices, but stored as a loose record
+ * rather than typed against the parts catalog, so that this file stays free of
+ * the character system: the engine deals in story rules, and what somebody's
+ * hair looks like is not one. The UI normalises it against the catalog, which
+ * means an unknown part degrades to a default instead of breaking a scene.
+ *
+ * Only the parts worth pinning need writing down. The rest is derived from the
+ * cast id, so a character is stable across runs without anyone specifying
+ * eleven fields to introduce a man who says two sentences.
+ */
+export type CastMember = {
+  name: string;
+  /** Who they are, in a few words, for the story bible rather than the screen. */
+  note?: string;
+  look?: Record<string, string>;
 };
 
 /** A lasting setback the group collects by failing a crisis. */
@@ -197,6 +224,8 @@ export type Story = {
   /** Scene id the story opens on. */
   start: string;
   scenes: Record<string, Scene>;
+  /** Everyone in the story who is not a player, keyed by the id scenes use. */
+  cast?: Record<string, CastMember>;
   mishaps?: Record<string, Mishap>;
   clues?: Record<string, Clue>;
   vars?: Record<string, VarSpec>;

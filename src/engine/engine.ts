@@ -149,9 +149,21 @@ export type ChoiceView = {
   votes: string[];
 };
 
+/**
+ * Who the dialog box shows as talking.
+ *
+ * Worked out here rather than in the UI for the same reason as everything else
+ * in `sceneView`: one place decides, and every screen in the room agrees.
+ */
+export type SpeakerView =
+  | { kind: "cast"; id: string; name: string; look: Record<string, string> }
+  | { kind: "spotlight"; player: PlayerState }
+  | { kind: "everyone"; players: PlayerState[] };
+
 export type SceneView = {
   sceneId: string;
   text: string;
+  speaker: SpeakerView;
   mode: "spotlight" | "group";
   isCrisis: boolean;
   spotlight: PlayerState;
@@ -196,9 +208,17 @@ export function sceneView(story: Story, state: GameState): SceneView {
     };
   });
 
+  const cast = scene.speaker ? story.cast?.[scene.speaker] : undefined;
+  const speaker: SpeakerView = cast
+    ? { kind: "cast", id: scene.speaker!, name: cast.name, look: cast.look ?? {} }
+    : mode === "group"
+      ? { kind: "everyone", players: state.players }
+      : { kind: "spotlight", player: spotlight };
+
   return {
     sceneId: state.sceneId,
     text: resolveText(scene.text, ctx),
+    speaker,
     mode,
     isCrisis: isCrisis(scene),
     spotlight,

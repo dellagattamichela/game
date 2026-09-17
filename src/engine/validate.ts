@@ -76,10 +76,22 @@ const scene = z
     type: z.enum(["normal", "crisis"]).optional(),
     mode: z.enum(["spotlight", "group"]).optional(),
     background: z.string().optional(),
+    speaker: z.string().min(1).optional(),
     text: z.string().min(1),
     // Investigation scenes offer more options than a comedy beat, because some
     // are hidden behind clues and a given run sees only a few of them.
     choices: z.array(choice).min(2).max(8),
+  })
+  .strict();
+
+const castMember = z
+  .object({
+    name: z.string().min(1),
+    note: z.string().optional(),
+    // Loose on purpose: an unknown part falls back to a default when the sprite
+    // is drawn, and a typo in a story file should not be a build failure over
+    // somebody's hair.
+    look: z.record(z.string(), z.string()).optional(),
   })
   .strict();
 
@@ -126,6 +138,7 @@ export const storySchema = z
     startingStars: z.number().int().min(0),
     start: z.string().min(1),
     scenes: z.record(z.string(), scene),
+    cast: z.record(z.string(), castMember).optional(),
     mishaps: z.record(z.string(), mishap).optional(),
     clues: z.record(z.string(), clue).optional(),
     vars: z.record(z.string(), varSpec).optional(),
@@ -162,6 +175,8 @@ function referentialProblems(story: Story): string[] {
   const problems: string[] = [];
   const sceneIds = new Set(Object.keys(story.scenes));
   const mishapIds = new Set(Object.keys(story.mishaps ?? {}));
+  const castIds = new Set(Object.keys(story.cast ?? {}));
+  const spokenBy = new Set<string>();
 
   if (!sceneIds.has(story.start)) {
     problems.push(`start scene "${story.start}" does not exist`);
@@ -170,6 +185,13 @@ function referentialProblems(story: Story): string[] {
   for (const [sceneId, scene] of Object.entries(story.scenes)) {
     const isCrisis = scene.type === "crisis";
     const isGroup = (scene.mode ?? "spotlight") === "group";
+
+    if (scene.speaker !== undefined) {
+      if (!castIds.has(scene.speaker)) {
+        problems.push(`scenes.${sceneId}.speaker "${scene.speaker}" is not in cast`);
+      }
+      spokenBy.add(scene.speaker);
+    }
 
     scene.choices.forEach((choice, i) => {
       const where = `scenes.${sceneId}.choices[${i}]`;
@@ -353,6 +375,12 @@ function referentialProblems(story: Story): string[] {
   }
   for (const id of sceneIds) {
     if (!reachable.has(id)) problems.push(`scene "${id}" is unreachable from "${story.start}"`);
+  }
+
+  // A cast member nobody speaks as is either a typo in a `speaker` or somebody
+  // who was written out — the same class of mistake as an orphan scene.
+  for (const id of castIds) {
+    if (!spokenBy.has(id)) problems.push(`cast "${id}" never speaks in any scene`);
   }
 
   return problems;

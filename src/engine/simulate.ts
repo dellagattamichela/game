@@ -6,6 +6,7 @@
  * disagree about what "a run" means.
  */
 import { applyAction, createGame, sceneView, totalStars } from "./engine";
+import { mulberry32 } from "./rng";
 import type { Action, GameState, Story } from "./types";
 
 export function applyOrThrow(story: Story, state: GameState, action: Action): GameState {
@@ -166,4 +167,44 @@ export function estimatePaths(story: Story, cap: number): number {
     if (total > cap) return Infinity;
   }
   return total;
+}
+
+/** Past this many paths, walking every one costs more memory than it is worth. */
+export const EXHAUSTIVE_CAP = 300_000;
+
+export type CoverageRuns = {
+  runs: GameState[];
+  /** True when every path was walked, false when the runs were sampled. */
+  exhaustive: boolean;
+};
+
+/**
+ * Every run of a story, or a fair sample of them.
+ *
+ * Which one you get depends on the size of the story, not on the caller: a
+ * twelve-scene comedy has few enough paths to walk all of them, and a
+ * thirty-six-scene investigation with eight skill tests has tens of millions.
+ * Sampling uses a fixed seed, so a failure is reproducible.
+ *
+ * Shared by the test suite and `npm run scenarios` so that the two cannot
+ * disagree about how a story was measured — and so that a story crossing the
+ * cap changes the strategy in both places at once, which is exactly what
+ * happened to The Pilot when it grew skill tests.
+ */
+export function coverageRuns(
+  story: Story,
+  players: { id: string; name: string }[],
+  options: { samples?: number; seed?: number; passRate?: number; onScene?: SceneVisitor } = {},
+): CoverageRuns {
+  const { samples = 8_000, seed = 20260916, passRate, onScene } = options;
+
+  if (estimatePaths(story, EXHAUSTIVE_CAP) <= EXHAUSTIVE_CAP) {
+    return { runs: enumerateRuns(story, players, Number.POSITIVE_INFINITY, onScene), exhaustive: true };
+  }
+
+  const rand = mulberry32(seed);
+  return {
+    runs: Array.from({ length: samples }, () => sampleRun(story, players, rand, onScene, passRate)),
+    exhaustive: false,
+  };
 }

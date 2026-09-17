@@ -809,8 +809,16 @@ describe("the store", () => {
         store.act("MNPQ", { type: "continue", playerId: "h" });
         continue;
       }
-      // The Pilot mixes spotlight scenes with group votes and has no skill
-      // tests, so choice 0 always lands — as a pick or as a unanimous vote.
+      if (game.phase === "minigame") {
+        store.act("MNPQ", {
+          type: "minigameResult",
+          playerId: game.minigame!.playerId,
+          passed: true,
+        });
+        continue;
+      }
+      // The Pilot mixes spotlight scenes with group votes, so choice 0 always
+      // lands — as a pick, as a unanimous vote, or as an attempted skill test.
       if (story.scenes[game.sceneId].mode === "group") {
         for (const player of game.players) {
           store.act("MNPQ", { type: "vote", playerId: player.id, choiceIndex: 0 });

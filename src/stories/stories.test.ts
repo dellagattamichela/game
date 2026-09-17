@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame, effectiveCost, resolveEnding, sceneView, totalStars } from "@/engine/engine";
 import { mulberry32 } from "@/engine/rng";
-import { enumerateRuns, sampleRun } from "@/engine/simulate";
+import { coverageRuns, sampleRun } from "@/engine/simulate";
 import { validateStory } from "@/engine/validate";
 import type { GameState, Story } from "@/engine/types";
 import { STORIES, requireStory } from ".";
@@ -47,7 +47,11 @@ describe("shipped stories", () => {
 describe("the-pilot", () => {
   const story = requireStory("the-pilot");
   const watcher = crisisWatcher(story);
-  const runs = enumerateRuns(story, PLAYERS, Number.POSITIVE_INFINITY, watcher.onScene);
+  // The Pilot outgrew exhaustive walking when it gained skill tests: nineteen
+  // scenes with four of them is on the order of a hundred million paths. The
+  // strategy is picked by the story's size, so this goes back to walking every
+  // path by itself if the story ever shrinks again.
+  const { runs } = coverageRuns(story, PLAYERS, { samples: 8000, onScene: watcher.onScene });
 
   it("every path reaches an ending", () => {
     expect(runs.length).toBeGreaterThan(1000);
@@ -76,7 +80,8 @@ describe("the-pilot", () => {
 
   it("mishap surcharges raise the cost of later crises", () => {
     const later = watcher.samples.filter((s) => s.sceneId === "s10");
-    expect([...new Set(later.map((s) => s.top))].sort()).toEqual([4, 5, 6]);
+    // Base 6, plus one for each surcharging mishap the room is carrying.
+    expect([...new Set(later.map((s) => s.top))].sort()).toEqual([6, 7, 8]);
   });
 });
 
@@ -88,17 +93,17 @@ describe("stranded", () => {
   const runs = Array.from({ length: 8000 }, () => sampleRun(story, PLAYERS, rand, watcher.onScene));
 
   it("matches the shape promised in docs/stranded-scenario-map.md", () => {
-    expect(Object.keys(story.scenes)).toHaveLength(36);
-    expect(Object.keys(story.clues ?? {})).toHaveLength(21);
+    expect(Object.keys(story.scenes)).toHaveLength(40);
+    expect(Object.keys(story.clues ?? {})).toHaveLength(23);
     expect(story.endings).toHaveLength(12);
     expect(story.vars?.accused.values).toHaveLength(5);
   });
 
-  it("gates eight moments behind a skill test, across all four kinds", () => {
+  it("gates twelve moments behind a skill test, across all four kinds", () => {
     const attempts = Object.values(story.scenes).flatMap((sc) =>
       sc.choices.filter((c) => c.minigame).map((c) => c.minigame!.type),
     );
-    expect(attempts).toHaveLength(8);
+    expect(attempts).toHaveLength(12);
     expect(new Set(attempts)).toEqual(new Set(["timing", "memory", "search", "order"]));
   });
 

@@ -5,25 +5,32 @@
  *
  * The prototype's screen is a hot seat: it renders every player's controls and
  * you act as whoever the turn belongs to. This one is the opposite — it knows
- * which player it belongs to and shows only what that person may do. Everything
- * else is watched, not driven: a spectator sees the same scene and the same
- * options, greyed, which is what keeps four people looking at the same story
- * instead of at a waiting screen.
+ * which player it belongs to and enables only what that person may do.
+ * Everyone else watches the same scene with the same options greyed, which is
+ * what keeps four people looking at one story instead of at a waiting screen.
+ *
+ * The framing is the prototype's, deliberately: the cast on a stage above, a
+ * dialog box pinned to the bottom with whoever is speaking on the left, a
+ * crisis marked in red, the notebook where the room can see it. That shape is
+ * the visual-novel look the game is aiming for, and a room should not look
+ * like a different game from the one on the front page.
  *
  * It computes no rules. `view` comes from the engine's `sceneView` on the
  * server, so a choice this screen shows as locked is exactly the one the
- * reducer will refuse.
+ * reducer will refuse, and the speaker it shows is the one the story named.
  */
 import { useEffect, useRef, useState, useTransition } from "react";
 import { CharacterPortrait } from "@/app/_components/character-portrait";
+import { CharacterSprite } from "@/app/_components/character-sprite";
 import { playCue } from "@/app/_components/sound";
 import { SoundToggle } from "@/app/_components/sound-toggle";
-import { TurnAnnouncement } from "@/app/_components/turn-announcement";
-import type { Character } from "@/characters/types";
 import { Minigame } from "@/app/_components/minigames";
+import { TurnAnnouncement } from "@/app/_components/turn-announcement";
+import { castCharacter } from "@/characters/character";
+import type { Character } from "@/characters/types";
 import { hashString } from "@/engine/rng";
 import type { GameState } from "@/engine/types";
-import type { SceneView } from "@/engine/engine";
+import type { SceneView, SpeakerView } from "@/engine/engine";
 import { playAction, type PlayInput } from "../actions";
 import { downloadEndingCard } from "./ending-card";
 
@@ -40,6 +47,8 @@ export type StoryChrome = {
   awards: { id: string; title: string; detail: string; who: string }[];
   /** The scenes worth retelling, already summarised. */
   recap: { label: string; note: string }[];
+  /** Art key for the current scene. Placeholder until stage 6 art exists. */
+  background?: string;
 };
 
 export function RoomTable({
@@ -70,9 +79,6 @@ export function RoomTable({
     });
   }
 
-  const me = game.players.find((p) => p.id === myId);
-  const isSpotlight = view.spotlight.id === myId;
-
   useCues(game, view);
 
   // Announce a scene once, on arrival. Keyed off the scene id rather than a
@@ -82,64 +88,38 @@ export function RoomTable({
   const [announced, setAnnounced] = useState<string | null>(null);
   const announcing = game.phase === "scene" && announced !== game.sceneId;
 
+  const isSpotlight = view.spotlight.id === myId;
+
   return (
-    <div className="flex flex-col gap-4">
-      <Cast
+    <div className="flex h-dvh flex-col">
+      <TopBar game={game} chrome={chrome} turnEndsAt={turnEndsAt} />
+
+      <Stage
         game={game}
-        myId={myId}
+        chrome={chrome}
         characters={characters}
+        myId={myId}
         spotlightId={view.spotlight.id}
-        canGive={game.phase === "scene" && !pending}
+        canGive={game.phase === "scene" && !pending && !announcing}
         onGive={(toId) => play({ kind: "give", toId, amount: 1 })}
       />
 
-      {chrome.clues ? <Notebook clues={chrome.clues} found={game.clues} total={chrome.clueCount} /> : null}
-
-      <TurnClock endsAt={turnEndsAt} />
-
-      <section
-        className={`flex flex-col gap-3 border-t-4 p-4 ${
-          view.isCrisis && game.phase !== "ended" ? "border-red-600" : ""
-        }`}
-      >
-        {game.phase === "scene" ? (
-          <Scene
-            game={game}
-            view={view}
-            myId={myId}
-            isSpotlight={isSpotlight}
-            busy={pending}
-            play={play}
-          />
-        ) : null}
-
-        {game.phase === "minigame" ? (
-          <SkillTest game={game} myId={myId} play={play} />
-        ) : null}
-
-        {game.phase === "result" ? (
-          <Result game={game} busy={pending} onContinue={() => play({ kind: "continue" })} />
-        ) : null}
-
-        {game.phase === "ended" ? <Ending game={game} chrome={chrome} characters={characters} /> : null}
-      </section>
-
       {error ? (
-        <p role="alert" className="border border-red-600 px-2 py-1 text-sm text-red-600">
+        <p role="alert" className="mx-auto w-full max-w-4xl px-4 pb-2 text-sm text-red-600">
           {error}
         </p>
       ) : null}
 
-      <div className="flex items-center justify-between gap-2">
-        {me ? (
-          <p className="text-sm opacity-60">
-            You are {me.name}, with {me.stars} ⭐.
-          </p>
-        ) : (
-          <p className="text-sm opacity-60">You are watching this one.</p>
-        )}
-        <SoundToggle />
-      </div>
+      <DialogBox
+        game={game}
+        view={view}
+        chrome={chrome}
+        characters={characters}
+        myId={myId}
+        isSpotlight={isSpotlight}
+        busy={pending}
+        play={play}
+      />
 
       {announcing ? (
         <TurnAnnouncement
@@ -154,45 +134,51 @@ export function RoomTable({
   );
 }
 
-/**
- * Plays a cue when the run reaches a new beat.
- *
- * Driven off changes in the state rather than off the click that caused them,
- * so a spectator hears the same things as the player who acted: the room is
- * meant to react together. The key folds in everything worth a sound, and the
- * ref means a poll that changes nothing stays quiet.
- */
-function useCues(game: GameState, view: SceneView) {
-  const last = useRef<string | null>(null);
-
-  useEffect(() => {
-    const key = `${game.phase}:${game.sceneId}:${game.pending?.minigame?.passed ?? ""}`;
-    if (last.current === key) return;
-    const first = last.current === null;
-    last.current = key;
-    // Nothing on the first render: arriving at a page is not an event.
-    if (first) return;
-
-    if (game.phase === "ended") return playCue("ending");
-    if (game.phase === "scene") return playCue(view.isCrisis ? "crisis" : "turn");
-    if (game.phase === "result" && game.pending?.minigame) {
-      return playCue(game.pending.minigame.passed ? "pass" : "fail");
-    }
-    if (game.phase === "result" && game.pending?.gifts.length) return playCue("star");
-  }, [game.phase, game.sceneId, game.pending, view.isCrisis]);
+function TopBar({
+  game,
+  chrome,
+  turnEndsAt,
+}: {
+  game: GameState;
+  chrome: StoryChrome;
+  turnEndsAt: number | null;
+}) {
+  return (
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+      <div className="flex items-baseline gap-2">
+        <h1 className="font-bold">{chrome.title}</h1>
+        <p className="text-xs opacity-60">
+          {game.phase === "ended"
+            ? `${game.log.length} scenes played`
+            : `scene ${game.sceneId} · ${game.log.length} resolved`}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <TurnClock endsAt={turnEndsAt} />
+        {game.mishaps.map((id) => (
+          <span key={id} className="border border-amber-600 px-2 py-0.5 text-xs text-amber-700">
+            {chrome.mishaps[id] ?? id}
+          </span>
+        ))}
+        <SoundToggle />
+      </div>
+    </header>
+  );
 }
 
-function Cast({
+function Stage({
   game,
-  myId,
+  chrome,
   characters,
+  myId,
   spotlightId,
   canGive,
   onGive,
 }: {
   game: GameState;
-  myId: string;
+  chrome: StoryChrome;
   characters: Record<string, Character>;
+  myId: string;
   spotlightId: string;
   canGive: boolean;
   onGive: (toId: string) => void;
@@ -201,8 +187,38 @@ function Cast({
   const ended = game.phase === "ended";
 
   return (
-    <div className="flex flex-col gap-2">
-      <ul className="flex flex-wrap items-end justify-center gap-4">
+    <div className="relative flex min-h-0 flex-1 items-end justify-center overflow-hidden border-b bg-neutral-100 dark:bg-neutral-900">
+      {/* Backgrounds are stage 6 art. Filling the stage with the placeholder
+          keeps the empty space reading as "art goes here" rather than as a gap. */}
+      <div className="absolute inset-2 flex items-start justify-center border border-dashed opacity-40">
+        <span className="px-2 py-1 text-xs">background: {chrome.background ?? "none"}</span>
+      </div>
+
+      {/* The notebook. An investigation is only legible if the room can see
+          what it already knows, so it sits on screen rather than behind a tab. */}
+      {chrome.clues ? (
+        <div className="absolute left-3 top-10 max-h-[70%] w-56 overflow-y-auto text-xs">
+          <p className="mb-1 font-semibold uppercase tracking-wide opacity-60">
+            Notebook {game.clues.length}/{chrome.clueCount}
+          </p>
+          {game.clues.length === 0 ? (
+            <p className="opacity-40">Nothing yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {game.clues.map((id) => (
+                <li key={id} className="border-l-2 pl-2">
+                  <span className="block">{chrome.clues![id]?.title ?? id}</span>
+                  {chrome.clues![id]?.description ? (
+                    <span className="block opacity-50">{chrome.clues![id].description}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+
+      <ul className="relative flex flex-wrap items-end justify-center gap-4 p-6">
         {game.players.map((player) => {
           const isSpotlight = !ended && player.id === spotlightId;
           return (
@@ -210,65 +226,129 @@ function Cast({
               <CharacterPortrait
                 player={player}
                 character={characters[player.id]}
-                size={isSpotlight ? 72 : 56}
+                size={isSpotlight ? 88 : 64}
                 dimmed={!ended && !isSpotlight}
                 blink
               />
               <span className={`text-sm ${isSpotlight ? "font-bold" : ""}`}>
                 {player.name}
-                {player.id === myId ? <span className="opacity-60"> (you)</span> : null}
+                {player.id === myId ? <span className="opacity-60"> (you)</span> : null}{" "}
+                <span className="tabular-nums opacity-70">{player.stars} ⭐</span>
               </span>
-              <span className="text-xs tabular-nums opacity-70">{player.stars} ⭐</span>
+              {/* Only your own seat gets a button: this is one player's screen,
+                  not the hot seat, so you can hand over your own Stars only. */}
+              {player.id === myId && !ended && player.id !== spotlightId ? (
+                <button
+                  type="button"
+                  className="border px-1 py-0.5 text-xs disabled:opacity-30"
+                  disabled={!canGive || (me?.stars ?? 0) < 1}
+                  onClick={() => onGive(spotlightId)}
+                >
+                  Give 1 ⭐
+                </button>
+              ) : null}
             </li>
           );
         })}
       </ul>
-
-      {/* Giving is the good part of the design doc, so it is one button and
-          always in the same place — not buried in the crisis it rescues. */}
-      {me && !ended && me.id !== spotlightId ? (
-        <button
-          type="button"
-          className="self-center border px-3 py-1 text-sm disabled:opacity-40"
-          disabled={!canGive || me.stars < 1}
-          onClick={() => onGive(spotlightId)}
-        >
-          Give 1 ⭐ to {game.players.find((p) => p.id === spotlightId)?.name}
-        </button>
-      ) : null}
     </div>
   );
 }
 
-function Notebook({
-  clues,
-  found,
-  total,
+/** Portrait plus name for whoever the dialog is speaking as. */
+function Speaker({
+  speaker,
+  characters,
 }: {
-  clues: Record<string, { title: string; description?: string }>;
-  found: string[];
-  total: number;
+  speaker: SpeakerView;
+  characters: Record<string, Character>;
 }) {
+  if (speaker.kind === "cast") {
+    return (
+      <div className="flex shrink-0 flex-col items-center gap-1">
+        <CharacterSprite
+          character={castCharacter(speaker.id, speaker.look)}
+          size={72}
+          label={`${speaker.name}'s portrait`}
+          blinkSeed={hashString(speaker.id)}
+        />
+        <span className="text-sm font-semibold">{speaker.name}</span>
+      </div>
+    );
+  }
+
+  const players = speaker.kind === "everyone" ? speaker.players : [speaker.player];
+  const label = speaker.kind === "everyone" ? "Everyone" : speaker.player.name;
+
   return (
-    <details className="border px-2 py-1 text-sm">
-      <summary className="cursor-pointer opacity-70">
-        Notebook {found.length}/{total}
-      </summary>
-      {found.length === 0 ? (
-        <p className="mt-1 opacity-40">Nothing yet.</p>
-      ) : (
-        <ul className="mt-1 flex flex-col gap-1">
-          {found.map((id) => (
-            <li key={id} className="border-l-2 pl-2">
-              <span className="block">{clues[id]?.title ?? id}</span>
-              {clues[id]?.description ? (
-                <span className="block opacity-50">{clues[id].description}</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </details>
+    <div className="flex shrink-0 flex-col items-center gap-1">
+      <div className="flex -space-x-4">
+        {players.map((p) => (
+          <CharacterPortrait
+            key={p.id}
+            player={p}
+            character={characters[p.id]}
+            size={players.length > 1 ? 44 : 72}
+          />
+        ))}
+      </div>
+      <span className="text-sm font-semibold">{label}</span>
+    </div>
+  );
+}
+
+function DialogBox({
+  game,
+  view,
+  chrome,
+  characters,
+  myId,
+  isSpotlight,
+  busy,
+  play,
+}: {
+  game: GameState;
+  view: SceneView;
+  chrome: StoryChrome;
+  characters: Record<string, Character>;
+  myId: string;
+  isSpotlight: boolean;
+  busy: boolean;
+  play: (input: PlayInput) => void;
+}) {
+  // During a skill test the attempting player speaks, whatever the scene says,
+  // and the ending belongs to the whole room.
+  const attempting = game.minigame
+    ? game.players.find((p) => p.id === game.minigame!.playerId)
+    : undefined;
+  const speaker: SpeakerView = attempting
+    ? { kind: "spotlight", player: attempting }
+    : game.phase === "ended"
+      ? { kind: "everyone", players: game.players }
+      : view.speaker;
+
+  return (
+    <section
+      className={`shrink-0 border-t-4 p-4 ${
+        view.isCrisis && game.phase !== "ended" ? "border-red-600" : ""
+      }`}
+    >
+      <div className="mx-auto flex w-full max-w-4xl gap-4">
+        <Speaker speaker={speaker} characters={characters} />
+        <div className="min-w-0 flex-1">
+          {game.phase === "scene" ? (
+            <Scene game={game} view={view} myId={myId} isSpotlight={isSpotlight} busy={busy} play={play} />
+          ) : null}
+          {game.phase === "minigame" ? <SkillTest game={game} myId={myId} play={play} /> : null}
+          {game.phase === "result" ? (
+            <Result game={game} busy={busy} onContinue={() => play({ kind: "continue" })} />
+          ) : null}
+          {game.phase === "ended" ? (
+            <Ending game={game} chrome={chrome} characters={characters} />
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -293,7 +373,7 @@ function Scene({
   const choices = view.choices.filter((choice) => !choice.hidden);
 
   return (
-    <>
+    <div className="flex flex-col gap-3">
       {view.isCrisis ? (
         <p className="text-xs font-bold uppercase tracking-widest text-red-600">Crisis</p>
       ) : null}
@@ -358,7 +438,7 @@ function Scene({
           </ul>
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -381,7 +461,7 @@ function SkillTest({
   const seed = hashString(`${game.seed}:${game.sceneId}:${attempt.choiceIndex}`);
 
   return (
-    <>
+    <div className="flex flex-col gap-3">
       <p className="text-sm">
         <strong>{who?.name}</strong> only gets one go at this.
         <span className="ml-2 opacity-60">difficulty {attempt.spec.difficulty}/5</span>
@@ -397,7 +477,7 @@ function SkillTest({
       ) : (
         <p className="opacity-70">Hold your breath.</p>
       )}
-    </>
+    </div>
   );
 }
 
@@ -417,7 +497,7 @@ function Result({
   const deltas = Object.entries(pending.deltas).filter(([, n]) => n !== 0);
 
   return (
-    <>
+    <div className="flex flex-col gap-2">
       <p className="text-sm opacity-60">{pending.label}</p>
       {pending.text ? <p className="leading-relaxed">{pending.text}</p> : null}
 
@@ -478,7 +558,7 @@ function Result({
       >
         {pending.next ? "Next scene" : "See how it went"}
       </button>
-    </>
+    </div>
   );
 }
 
@@ -517,7 +597,7 @@ function Ending({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex max-h-[45vh] flex-col gap-3 overflow-y-auto">
       <div>
         <p className="text-xs uppercase tracking-widest opacity-60">Ending</p>
         <h2 className="text-xl font-bold">{chrome.ending?.title}</h2>
@@ -531,7 +611,7 @@ function Ending({
       <div ref={cast} className="flex flex-wrap justify-center gap-4">
         {game.players.map((player) => (
           <div key={player.id} className="flex flex-col items-center gap-1">
-            <CharacterPortrait player={player} character={characters[player.id]} size={72} blink />
+            <CharacterPortrait player={player} character={characters[player.id]} size={64} />
             <span className="text-sm">{player.name}</span>
             <span className="text-xs tabular-nums opacity-60">{player.stars} ⭐</span>
           </div>
@@ -580,7 +660,7 @@ function Ending({
 
       <button
         type="button"
-        className="border-2 px-4 py-2 font-semibold disabled:opacity-40"
+        className="self-start border-2 px-4 py-1 font-semibold disabled:opacity-40"
         disabled={saving}
         onClick={save}
       >
@@ -599,10 +679,9 @@ function Ending({
  * The countdown, when the host has set a timer.
  *
  * Counts down to `endsAt`, which the server put on the room — so four browsers
- * with four slightly wrong clocks still agree on the moment, give or take
- * their own drift, rather than each timing their own idea of when the scene
- * began. Running out is not this component's business: the next poll asks the
- * server, and the server decides.
+ * with four slightly wrong clocks still agree on the moment, rather than each
+ * timing its own idea of when the scene began. Running out is not this
+ * component's business: the next poll asks the server, and the server decides.
  */
 function TurnClock({ endsAt }: { endsAt: number | null }) {
   // The clock reading, not the seconds left: keeping "now" in state and doing
@@ -620,13 +699,41 @@ function TurnClock({ endsAt }: { endsAt: number | null }) {
   const left = Math.max(0, Math.ceil((endsAt - now) / 1000));
 
   return (
-    <p
-      className={`text-center text-sm tabular-nums ${left <= 10 ? "font-bold text-red-600" : "opacity-60"}`}
+    <span
+      className={`text-xs tabular-nums ${left <= 10 ? "font-bold text-red-600" : "opacity-60"}`}
       // Read out only as it gets tight, so a screen reader is not counting
       // every second of a ninety-second turn.
       aria-live={left <= 10 ? "polite" : "off"}
     >
-      {left > 0 ? `${left}s left` : "Time — taking the safe option."}
-    </p>
+      {left > 0 ? `${left}s` : "time"}
+    </span>
   );
+}
+
+/**
+ * Plays a cue when the run reaches a new beat.
+ *
+ * Driven off changes in the state rather than off the click that caused them,
+ * so a spectator hears the same things as the player who acted: the room is
+ * meant to react together. The ref means a poll that changes nothing stays
+ * quiet.
+ */
+function useCues(game: GameState, view: SceneView) {
+  const last = useRef<string | null>(null);
+
+  useEffect(() => {
+    const key = `${game.phase}:${game.sceneId}:${game.pending?.minigame?.passed ?? ""}`;
+    if (last.current === key) return;
+    const first = last.current === null;
+    last.current = key;
+    // Nothing on the first render: arriving at a page is not an event.
+    if (first) return;
+
+    if (game.phase === "ended") return playCue("ending");
+    if (game.phase === "scene") return playCue(view.isCrisis ? "crisis" : "turn");
+    if (game.phase === "result" && game.pending?.minigame) {
+      return playCue(game.pending.minigame.passed ? "pass" : "fail");
+    }
+    if (game.phase === "result" && game.pending?.gifts.length) return playCue("star");
+  }, [game.phase, game.sceneId, game.pending, view.isCrisis]);
 }

@@ -113,6 +113,16 @@
       "id": "marisol_admission",
       "title": "What she said when it was laid out",
       "description": "\"He wasn't supposed to open it.\""
+    },
+    "dispensary_log": {
+      "id": "dispensary_log",
+      "title": "The dispensary log",
+      "description": "Four collections in three weeks, all signed by the captain, none of them prescribed that morning."
+    },
+    "cold_store_power": {
+      "id": "cold_store_power",
+      "title": "The cold store came off the board",
+      "description": "02:41. The compressor stops drawing and nothing switches it back on."
     }
   },
   "vars": {
@@ -131,6 +141,85 @@
       "values": [
         "yes"
       ]
+    }
+  },
+  "cast": {
+    "brann": {
+      "name": "First Officer Brann",
+      "note": "Second in command, and running the ship as though he always has.",
+      "look": {
+        "body": "square",
+        "hair": "buzz",
+        "hairColor": "silver",
+        "skin": "fair",
+        "top": "blazer",
+        "topColor": "ink",
+        "eyes": "narrow",
+        "brows": "thick",
+        "mouth": "flat"
+      }
+    },
+    "okonjo": {
+      "name": "Dr. Okonjo",
+      "note": "Ship's doctor. Was quietly treating the captain, and will not say so.",
+      "look": {
+        "body": "soft",
+        "hair": "bob",
+        "hairColor": "black",
+        "skin": "deep",
+        "top": "turtleneck",
+        "topColor": "teal",
+        "eyes": "round",
+        "brows": "fine",
+        "mouth": "flat",
+        "accessory": "glasses"
+      }
+    },
+    "marisol": {
+      "name": "Marisol Reyes",
+      "note": "Head chef. The buffet is gone and so is the captain, for the same reason.",
+      "look": {
+        "body": "soft",
+        "hair": "ponytail",
+        "hairColor": "brown",
+        "skin": "olive",
+        "top": "apron",
+        "topColor": "red",
+        "eyes": "narrow",
+        "brows": "straight",
+        "mouth": "flat"
+      }
+    },
+    "hal": {
+      "name": "Hal",
+      "note": "Night engineer. Awake for nineteen hours and the only reason there is light.",
+      "look": {
+        "body": "square",
+        "hair": "curly",
+        "hairColor": "ginger",
+        "skin": "tan",
+        "top": "hoodie",
+        "topColor": "orange",
+        "eyes": "sleepy",
+        "brows": "raised",
+        "mouth": "open"
+      }
+    },
+    "teddy": {
+      "name": "Teddy Vance",
+      "note": "Passenger. Filmed everything and will not hand over the footage.",
+      "look": {
+        "body": "square",
+        "hair": "fringe",
+        "hairColor": "blond",
+        "skin": "porcelain",
+        "top": "tee",
+        "topColor": "yellow",
+        "eyes": "sparkly",
+        "brows": "raised",
+        "mouth": "grin",
+        "accessory": "cap"
+      }
     }
   },
   "mishaps": {
@@ -691,7 +780,8 @@
           "result": "{spotlight} tells him he can be the one who found it. He hands the phone over so fast he nearly drops it, and is useful for the rest of the morning.",
           "next": "s16"
         }
-      ]
+      ],
+      "speaker": "teddy"
     },
     "s16": {
       "mode": "spotlight",
@@ -791,7 +881,8 @@
           "result": "She wipes down a surface that is already clean, three times, while {spotlight} says nothing at all.",
           "next": "s19"
         }
-      ]
+      ],
+      "speaker": "marisol"
     },
     "s19": {
       "mode": "spotlight",
@@ -808,7 +899,7 @@
             "stars": 1
           },
           "result": "She was with a patient from one until four and there are two people who can say so. The prescription was for a heart condition he did not want logged. She is not hiding a crime, she is hiding a man's medical record.",
-          "next": "s20"
+          "next": "s19b"
         },
         {
           "label": "Ask her in front of everyone",
@@ -816,7 +907,7 @@
             "stars": 1
           },
           "result": "\"I'm not going to discuss a patient on a deck.\" It is the correct answer and it sounds terrible.",
-          "next": "s20"
+          "next": "s19b"
         },
         {
           "label": "Leave her to her wrist",
@@ -824,6 +915,41 @@
             "stars": 1
           },
           "result": "She is the only person on this ship doing her actual job.",
+          "next": "s19b"
+        }
+      ],
+      "speaker": "okonjo"
+    },
+    "s19b": {
+      "mode": "spotlight",
+      "background": "sick_bay",
+      "speaker": "okonjo",
+      "text": "\"The dispensary log is public. I am not hiding it and I am not fetching it for you either.\" It is on a clipboard on a hook, and the ship is rolling enough that the hook is doing most of the work.",
+      "choices": [
+        {
+          "label": "Take the log off the hook on the roll",
+          "minigame": {
+            "type": "timing",
+            "difficulty": 3,
+            "prompt": "The ship comes back level for about a second. Lift it then."
+          },
+          "effects": {
+            "addClue": "dispensary_log",
+            "stars": 1
+          },
+          "result": "Four collections in three weeks, all signed by the captain, and Dr. Okonjo watches {spotlight} read every line without saying one word.",
+          "next": "s20",
+          "failNext": "s20",
+          "failResult": "The clipboard goes over, the pages go everywhere, and by the time they are back on the hook she has them in a different order."
+        },
+        {
+          "label": "Ask her to read it out instead",
+          "result": "\"Dates and initials.\" She reads dates and initials, and nothing else, for ninety seconds.",
+          "next": "s20"
+        },
+        {
+          "label": "Ask what she would put in her own report",
+          "result": "\"That a man who was unwell is missing, and that nobody asked me about it until half past nine.\"",
           "next": "s20"
         }
       ]
@@ -861,7 +987,8 @@
           "result": "\"On the bridge. All night. He's always on the bridge.\" Hal says it like it is the least interesting fact on the ship.",
           "next": "s21"
         }
-      ]
+      ],
+      "speaker": "brann"
     },
     "s21": {
       "mode": "spotlight",
@@ -874,7 +1001,7 @@
             "stars": 2
           },
           "result": "Three in the morning, cold store, lit. He is certain, because he noted the time, because he notes everything.",
-          "next": "s22"
+          "next": "s21b"
         },
         {
           "label": "Ask him to get some sleep",
@@ -882,7 +1009,7 @@
             "stars": 1
           },
           "result": "He says he will after the generators. He will not.",
-          "next": "s22"
+          "next": "s21b"
         },
         {
           "label": "Ask what he thinks happened",
@@ -890,6 +1017,41 @@
             "stars": 1
           },
           "result": "\"I think somebody's done something stupid and it's got away from them.\" He goes back down the ladder.",
+          "next": "s21b"
+        }
+      ],
+      "speaker": "hal"
+    },
+    "s21b": {
+      "mode": "spotlight",
+      "background": "engine_room",
+      "speaker": "hal",
+      "text": "\"Everything that draws power leaves a mark on the board, right, and the board doesn't lie, it just doesn't put things in order either.\" Hal has been talking for six minutes and has not yet reached the point.",
+      "choices": [
+        {
+          "label": "Put the night's draw in order with him",
+          "minigame": {
+            "type": "order",
+            "difficulty": 3,
+            "prompt": "Six loads, earliest first. The night only draws one way."
+          },
+          "effects": {
+            "addClue": "cold_store_power",
+            "stars": 1
+          },
+          "result": "02:41, and the cold store stops drawing. \"That's not a trip,\" Hal says, suddenly not rambling at all. \"Somebody pulled it.\"",
+          "next": "s22",
+          "failNext": "s22",
+          "failResult": "Twenty minutes and the board still reads like a shopping list. Hal apologises for it four times."
+        },
+        {
+          "label": "Ask him to write it up for the coastguard",
+          "result": "\"I'll do it after,\" he says, meaning after nineteen other things, meaning tomorrow.",
+          "next": "s22"
+        },
+        {
+          "label": "Ask whether anyone else has been down here",
+          "result": "\"Marisol came for ice about two. We talked about her sister.\" He says it like it is nothing, because to him it is.",
           "next": "s22"
         }
       ]
@@ -1023,8 +1185,8 @@
             "stars": 2
           },
           "result": "Dinner ends at midnight. The galley at two. The corridor at 02:41. The distress call at 02:48, cancelled at 02:49. The cold store lit at three. It is one story and it only goes one way.",
-          "next": "s26",
-          "failNext": "s26",
+          "next": "s25b",
+          "failNext": "s25b",
           "failResult": "Three attempts, three different nights, and everybody starts arguing about the second one."
         },
         {
@@ -1033,7 +1195,7 @@
             "stars": 1
           },
           "result": "Four piles. One of them is much bigger than the others and nobody says so out loud.",
-          "next": "s26"
+          "next": "s25b"
         },
         {
           "label": "Give up and go back to searching",
@@ -1041,6 +1203,39 @@
             "stars": 1
           },
           "result": "There is more ship left than there is morning.",
+          "next": "s25b"
+        }
+      ]
+    },
+    "s25b": {
+      "mode": "spotlight",
+      "background": "bridge",
+      "speaker": "brann",
+      "text": "\"You have had a long morning in rooms that are not yours.\" Brann says it pleasantly, with the watch rota behind him, and does not move out of the way of it.",
+      "choices": [
+        {
+          "label": "Recite his own rota back to him",
+          "minigame": {
+            "type": "memory",
+            "difficulty": 4,
+            "prompt": "Four watches and who stood them. He will say it once, quickly, to be rid of you."
+          },
+          "effects": {
+            "stars": 1
+          },
+          "result": "{spotlight} gives it back to him in order, including the swap he did not mention. He stands aside from the rota, which is its own kind of answer.",
+          "next": "s26",
+          "failNext": "s26",
+          "failResult": "Two names in the wrong watches. \"Close,\" says Brann, in the tone of a man closing a door."
+        },
+        {
+          "label": "Tell him plainly what the room has",
+          "result": "He listens to all of it. \"Then say it in front of the cutter,\" he says, \"and not to me.\"",
+          "next": "s26"
+        },
+        {
+          "label": "Apologise and keep moving",
+          "result": "\"Don't apologise,\" he says. \"Just be right.\"",
           "next": "s26"
         }
       ]
@@ -1090,13 +1285,13 @@
         },
         {
           "label": "Get Hal to bring one generator back",
-          "cost": 3,
+          "cost": 6,
           "result": "Forty minutes of his life and one deck of lighting.",
           "next": "s28"
         },
         {
           "label": "Get every torch on the ship into one place first",
-          "cost": 5,
+          "cost": 11,
           "effects": {
             "starsAll": 1
           },
@@ -1138,7 +1333,8 @@
           "result": "Whatever she is going to say, she is not going to say it to you.",
           "next": "s29"
         }
-      ]
+      ],
+      "speaker": "marisol"
     },
     "s29": {
       "mode": "spotlight",
@@ -1166,8 +1362,8 @@
             "starsAll": 1
           },
           "result": "The door has been wedged from the outside with a mop handle. Captain Vasquez has been in there for nine hours: hoarse, upright, furious, and entirely alive.",
-          "next": "s30",
-          "failNext": "s30",
+          "next": "s29b",
+          "failNext": "s29b",
           "failResult": "The handle snaps off in the hasp and jams the whole thing solid. It will take the coastguard and a cutting tool."
         },
         {
@@ -1176,7 +1372,7 @@
             "stars": 1
           },
           "result": "{spotlight} takes the stairs two at a time and does not look back down them.",
-          "next": "s30"
+          "next": "s29b"
         },
         {
           "label": "Wait for Brann to authorise it",
@@ -1184,6 +1380,39 @@
             "stars": 1
           },
           "result": "He authorises it in due course, through the proper channel, at twenty past seven.",
+          "next": "s29b"
+        }
+      ]
+    },
+    "s29b": {
+      "mode": "spotlight",
+      "background": "galley",
+      "speaker": "marisol",
+      "text": "\"Take the manifest. Take all of it.\" Marisol pushes three weeks of delivery paper across the counter at once, and it is not an apology, it is a dare.",
+      "choices": [
+        {
+          "label": "Go through it in front of her",
+          "minigame": {
+            "type": "search",
+            "difficulty": 4,
+            "prompt": "Three weeks of deliveries. Four crates arrive that nobody ordered."
+          },
+          "effects": {
+            "stars": 1
+          },
+          "result": "Four crates, four Tuesdays, no order numbers. She watches {spotlight} find every one and her face does not change until the fourth.",
+          "next": "s30",
+          "failNext": "s30",
+          "failResult": "Page after page of langoustines. By the time the numbers blur she has made herself a coffee and sat down."
+        },
+        {
+          "label": "Take it and read it somewhere else",
+          "result": "\"That's what I'd do,\" she says, and goes back to a stove with nothing on it.",
+          "next": "s30"
+        },
+        {
+          "label": "Ask her to tell you what is in it",
+          "result": "\"Food,\" she says. \"Mostly food.\" It is the first time all morning she has qualified anything.",
           "next": "s30"
         }
       ]
@@ -1228,13 +1457,13 @@
         },
         {
           "label": "Refuse",
-          "cost": 2,
+          "cost": 4,
           "result": "{spotlight} says no, out loud, in front of forty people, and Brann decides not to make it a scene.",
           "next": "s32"
         },
         {
           "label": "Hand over a copy and keep the original",
-          "cost": 5,
+          "cost": 9,
           "effects": {
             "starsAll": 1
           },

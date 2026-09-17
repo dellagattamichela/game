@@ -329,6 +329,32 @@ name rather than three scenes into a playthrough.
 
 Placeholders: `{spotlight}`, `{randomPlayer}` (never the spotlight), `{everyone}`.
 
+### People who are not players
+
+A story can declare a `cast`, and a scene can name one of them as its
+`speaker`. The dialog box then shows that character talking instead of the
+spotlight player:
+
+```jsonc
+"cast": {
+  "dot": {
+    "name": "Dot",
+    "note": "Floor manager. Has never once been surprised.",
+    "look": { "hair": "bob", "hairColor": "silver", "top": "apron" }
+  }
+},
+"scenes": {
+  "s1b": { "speaker": "dot", "text": "\"Studio's yours till Sunday.\"", "choices": [...] }
+}
+```
+
+This is presentation only: it changes who is on screen, never who decides. A
+cast member's face comes from the same parts catalog the players use, derived
+from their id so they look the same in every run, with `look` pinning only the
+parts worth writing down — introducing someone who says two sentences costs one
+line. Validation refuses a `speaker` that is not in the cast, and a cast member
+who never speaks, which is the same class of mistake as an orphan scene.
+
 Rules the validator enforces: `next` and `failNext` must point at real scenes,
 only crisis scenes carry costs, group scenes carry neither costs nor skill tests,
 no choice carries both a cost and a skill test, every scene must be reachable,
@@ -347,22 +373,26 @@ npm run scenarios -- stranded 4 0.7   # story id, player count, skill-test pass 
 ```
 
 ```
-  s9  best option costs min 5, avg 5.0, max 5
-        affordable alone 59% · pooled 100% · needs the table 41%
+  s27  best option costs min 8, avg 11.4, max 14
+        affordable alone 61% · pooled 100% · needs the table 39%
 
   ████████████████████████████████████████ 100.0%  captain_notebook
-  ███████·································  18.4%  torn_page
+  █████████·······························  23.4%  cold_store_power
+  ███·····································   7.6%  marisol_admission
 
-  ██······································   4.8%  rescued_and_named
-  ████····································  10.8%  adrift
+  ██████··································  15.6%  captain_explains
+  █████···································  12.8%  adrift
 ```
 
 Near 100% affordable alone means the gate is decoration; near 0% means it is a
 wall. The gap is how often the room has to chip in, which is the moment the
 mechanic exists to create. An ending marked `← UNREACHABLE` exits non-zero.
 
-Small stories are walked exhaustively (78,732 paths for The Pilot). Stranded has
-far more than that, so it samples from a fixed seed instead. The pass rate lets
+A story small enough gets every path walked; past 300,000 the tool samples from
+a fixed seed instead, and `coverageRuns` makes that call so the test suite and
+this report can never disagree about how a story was measured. The Pilot used to
+be walked exhaustively at 78,732 paths and crossed over when it gained skill
+tests — four of them multiply the space by sixteen on their own. The pass rate lets
 you check a story both at the rate a confident group hits and at the rate a
 struggling one does; Stranded keeps every ending reachable from 35% to 95%. Sampling picks
 uniformly among takeable options, which is not how a group plays — read the
@@ -370,10 +400,11 @@ percentages as the shape of the space, not as predicted outcomes.
 
 ## The two stories
 
-**The Pilot** — 12 scenes, comedy, one branch, endings keyed on mishaps. Short,
-and the one to teach the game with.
+**The Pilot** — 19 scenes, comedy, one branch, endings keyed on mishaps, with a
+four-strong cast of network people who talk back. Five skill tests, one of them
+the only way to undo a mishap. Short, and the one to teach the game with.
 
-**Stranded** — 36 scenes, a closed-circle mystery: 21 clues, 8 skill tests, 4
+**Stranded** — 40 scenes, a closed-circle mystery: 23 clues, 12 skill tests, 4
 crisis gates and 12 endings, running roughly 50 to 70 minutes. Endings depend on
 *who* the room accuses, *what* it can prove, whether anyone thought to open the
 one door nobody opened, and whether the room had the exculpatory clue in its
@@ -386,7 +417,7 @@ Stranded adds three things The Pilot does not use:
 
 - **Clues.** A notebook the group accumulates. Choices can require them.
 - **Run variables.** Single-valued state such as `accused`, read by endings.
-- **Skill tests.** Eight moments where the spotlight player has to *do*
+- **Skill tests.** Twelve moments where the spotlight player has to *do*
   something: hold a hand steady, remember a code, scan a page, put a night back
   in order.
 

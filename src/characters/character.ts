@@ -7,7 +7,7 @@
  * Server Action into a room that every other browser reads, so "the same data
  * always draws the same sprite" has to hold on machines that never met.
  */
-import { pickIndex } from "@/engine/rng";
+import { hashString, pickIndex } from "@/engine/rng";
 import {
   ACCESSORIES,
   BODIES,
@@ -155,4 +155,16 @@ export const PALETTES: Record<"skin" | "hair" | "eye" | "top", readonly Palette[
 export function partFor(field: CharacterField, id: string | null): Part | undefined {
   if (id === null) return undefined;
   return CHOICES[field].options.find((o) => o.id === id) as Part | undefined;
+}
+
+/**
+ * The face of someone in the story's cast.
+ *
+ * Derived from their id so a given character looks the same in every run and
+ * on every screen, with whatever the writer pinned laid over the top. That way
+ * introducing a man who says two sentences costs one line of JSON, and pinning
+ * the two things that matter about him costs two more.
+ */
+export function castCharacter(castId: string, look: Record<string, string> = {}): Character {
+  return normalizeCharacter({ ...randomCharacter(hashString(castId)), ...look });
 }

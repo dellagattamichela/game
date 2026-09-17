@@ -3,7 +3,7 @@
 *The story bible for the investigation story. This is the source of truth for
 what is true, what can be found, and where every run can end up.*
 
-**36 scenes · 21 clues · 8 skill tests · 4 crisis gates · 12 endings.**
+**40 scenes · 23 clues · 12 skill tests · 4 crisis gates · 12 endings.**
 A full run is roughly 50 to 70 minutes.
 
 Companion: `npm run scenarios -- stranded` generates the coverage report that
@@ -66,9 +66,34 @@ at them **and** an exculpatory clue that clears them, reachable only by asking a
 second time. A group that accuses one of them while holding the exculpatory clue
 gets a harsher ending than one that never found it — see endings 7 and 8.
 
+## 3b. Who speaks
+
+Five of the people on this ship now talk to the room directly rather than being
+described to it. A scene with a `speaker` shows that person in the dialog box
+instead of the spotlight player, which is presentation only — it changes who is
+on screen, never who decides.
+
+| Cast id | Speaks in |
+|---|---|
+| `brann` | s20, s25b |
+| `okonjo` | s19, s19b |
+| `marisol` | s18, s28, s29b |
+| `hal` | s21, s21b |
+| `teddy` | s15 |
+
+The four `…b` scenes are the ones added with them: each is that character
+pushing something across a table, and each is gated behind a skill test of a
+different kind, so the interview round stops being four conversations in a row
+with the same shape.
+
+The climactic gates were repriced when those scenes went in. The night is four
+scenes longer before s27 and s31, so the room reaches the last act richer, and
+the two gates went to 11 and 9 to stay a decision rather than a formality. See
+§8 for the measured affordability.
+
 ## 4. Clues
 
-Twenty-one clues. The measured ceiling in a single run is **18**, so every group
+Twenty-three clues. The measured ceiling in a single run is **18**, so every group
 finishes with something they never found.
 
 | Id | Found in | Gate | Missable |
@@ -76,6 +101,8 @@ finishes with something they never found.
 | `captain_notebook` | s3, the empty bridge | — | no |
 | `brann_promotion` | s4, searching his desk | — | yes |
 | `radio_log` | s5, the radio room | **memory** | yes |
+| `dispensary_log` | s19b, Dr. Okonjo's clipboard | **timing** | yes |
+| `cold_store_power` | s21b, Hal's load board | **order** | yes |
 | `cold_store_empty` | Galley search | — | yes |
 | `key_missing` | Galley search | — | yes |
 | `hal_saw_light` | Engine room search | — | yes |
@@ -120,7 +147,7 @@ being offered.
 
 ## 6. Scene map
 
-Five acts, 36 scenes. `spot` = spotlight player decides, `group` = everyone votes,
+Five acts, 40 scenes. `spot` = spotlight player decides, `group` = everyone votes,
 **CRISIS** = Star-gated, **[type]** = skill test.
 
 ```
@@ -260,7 +287,7 @@ test pass rate:
 
 **Clues per run: 5 minimum, 9.1 average, 18 maximum of 21.**
 
-All 12 endings and all 21 clues remain reachable at 2, 4 and 6 players, and at
+All 12 endings and all 23 clues remain reachable at 2, 4 and 6 players, and at
 pass rates from 35% to 95%.
 
 One caveat on the ending percentages in that report: sampling picks **uniformly
@@ -285,7 +312,7 @@ Decisions specific to Stranded, which differ from The Pilot:
 
 ## 12. Open questions
 
-1. Eight skill tests in 36 scenes — roughly one every four and a half scenes. Too
+1. Twelve skill tests in 40 scenes — roughly one every three and a third scenes. Too
    many, too few, or wrong in their placement?
 2. A failed skill test currently costs only the clue. Should any of them cost
    something worse — a mishap, or tipping off the culprit?

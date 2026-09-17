@@ -64,54 +64,14 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
   // Nothing about a finished run will change, so stop asking.
   const settled = room.status === "ended";
 
-  return (
-    <main
-      className={`mx-auto flex w-full flex-col gap-6 p-6 ${
-        room.status === "lobby" ? "max-w-md" : "max-w-2xl"
-      }`}
-    >
-      <LobbyRefresh
-        code={room.code}
-        everyMs={room.status === "lobby" ? 3000 : 2000}
-        paused={myMinigame || settled}
-      />
-      <h1 className="text-2xl font-bold">{room.status === "lobby" ? "Lobby" : story?.title}</h1>
-
-      {room.status === "lobby" ? <InviteCode code={room.code} link={link} /> : null}
-
-      <Roster room={room} playerId={playerId} />
-
-      {room.status === "lobby" ? (
-        <>
-          <Link
-            href={`/rooms/${room.code}/character`}
-            className="border px-3 py-2 text-center text-sm"
-          >
-            Build your character
-          </Link>
-
-          {me ? <ReadyToggle code={room.code} ready={me.ready} /> : null}
-
-          {isHost ? (
-            <StoryPicker code={room.code} stories={STORY_CARDS} chosenId={room.storyId} />
-          ) : (
-            <p className="text-sm opacity-70">
-              {story
-                ? `The host picked ${story.title}.`
-                : "The host is choosing a story."}
-            </p>
-          )}
-
-          {isHost ? <TimerPicker code={room.code} seconds={room.turnTimer} /> : null}
-
-          {isHost ? (
-            <StartButton
-              code={room.code}
-              blockedBecause={startBlocker(room, story)?.message ?? null}
-            />
-          ) : null}
-        </>
-      ) : (
+  // Once the story starts the room stops being a page and becomes a stage:
+  // full height, cast above, dialog box pinned to the bottom. That is the
+  // prototype's framing, and a room should not look like a different game
+  // from the one on the front page.
+  if (room.status !== "lobby") {
+    return (
+      <>
+        <LobbyRefresh code={room.code} everyMs={2000} paused={myMinigame || settled} />
         <Table
           game={room.game}
           story={story}
@@ -120,7 +80,44 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[code]">) {
           characters={Object.fromEntries(room.players.map((p) => [p.id, p.character]))}
           turnEndsAt={room.turnEndsAt}
         />
+      </>
+    );
+  }
+
+  return (
+    <main className="mx-auto flex w-full max-w-md flex-col gap-6 p-6">
+      <LobbyRefresh code={room.code} everyMs={3000} paused={settled} />
+      <h1 className="text-2xl font-bold">Lobby</h1>
+
+      <InviteCode code={room.code} link={link} />
+
+      <Roster room={room} playerId={playerId} />
+
+      <Link
+        href={`/rooms/${room.code}/character`}
+        className="border px-3 py-2 text-center text-sm"
+      >
+        Build your character
+      </Link>
+
+      {me ? <ReadyToggle code={room.code} ready={me.ready} /> : null}
+
+      {isHost ? (
+        <StoryPicker code={room.code} stories={STORY_CARDS} chosenId={room.storyId} />
+      ) : (
+        <p className="text-sm opacity-70">
+          {story ? `The host picked ${story.title}.` : "The host is choosing a story."}
+        </p>
       )}
+
+      {isHost ? <TimerPicker code={room.code} seconds={room.turnTimer} /> : null}
+
+      {isHost ? (
+        <StartButton
+          code={room.code}
+          blockedBecause={startBlocker(room, story)?.message ?? null}
+        />
+      ) : null}
 
       <Link href="/" className="text-sm underline opacity-70">
         Back to the single-browser prototype
@@ -189,6 +186,7 @@ function Table({
           }))
         : [],
     recap: game.phase === "ended" ? highlights(game).map(momentOf(story)) : [],
+    background: story.scenes[game.sceneId]?.background,
   };
 
   return (
